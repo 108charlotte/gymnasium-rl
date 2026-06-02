@@ -1,30 +1,19 @@
-from pettingzoo import ParallelEnv
 import numpy as np
 import gymnasium as gym
 from copy import copy
 import functools
 
-class GridWorld(ParallelEnv): 
-    metadata = {
-        "name": "gridworld_v0",
-    }
-
-    def __init__(self, 
-                 size: int = 10,
-                 num_types_special_regions: int = 0, 
-                 visible_region_sizes: tuple[int, int] = (-1, -1)): 
+class GridWorldBase(gym.Env): 
+    def __init__(self, size=10, num_types_special_regions=0): 
         self.size = size
-        self.timestep = None
-        self._possible_agents = ["teacher", "student"]
         self._num_types_special_regions = num_types_special_regions
-        # store visible region sizes for teacher and student if not negative (either default or invalid input), if invalid then set to size of gridworld (full worldview)
-        # index 0 is teacher, index 1 is student
-        self._visible_region_sizes = visible_region_sizes if visible_region_sizes[0] > 0 and visible_region_sizes[1] > 0 else (size, size)
-
-        # default un-initialized locations
         self.coords_to_default()
-
-        # full agent action -> environment interpretation wrapper would be overkill, so just simple lookup table from tutorial
+        self.action_space = gym.spaces.Discrete(4)
+        self.observation_space = gym.spaces.Dict({ # leaving special_regions out of this, will be dealt with in wrappers seperately
+            "teacher_agent": gym.spaces.Box(0, size-1, shape=(2,), dtype=np.int32), 
+            "student_agent": gym.spaces.Box(0, size-1, shape=(2,), dtype=np.int32), 
+            "target": gym.spaces.Box(0, size-1, shape=(2,), dtype=np.int32)
+        })
         self._action_to_direction = {
             0: np.array([0, 1]), # right (col + 1)
             1: np.array([-1, 0]), # up (row - 1)
@@ -36,101 +25,126 @@ class GridWorld(ParallelEnv):
         self._teacher_agent_location = np.array([-1, -1], dtype=np.int32)
         self._student_agent_location = np.array([-1, -1], dtype=np.int32)
         self._target_location = np.array([-1, -1], dtype=np.int32)
-        self._special_regions = np.array([[] for special_region in range(self._num_types_special_regions)], dtype=object)  # each index corresponds to a different type of region, and the values in the list are each tuples of coordinates where the region is
+        self._special_regions = np.array([[()] for special_region in range(self._num_types_special_regions)], dtype=object)  # each index corresponds to a different type of region, and the values in the list are each tuples of coordinates where the region is
     
-    def reset(self, seed=None, options=None): 
-        super().reset(seed=seed)
-
-        self.agents = copy(self._possible_agents)
-        self.timestep = 0
-
-        self.coords_to_default() # set coords to uninitialized values
-
-        # place agents randomly on grid (both at same position though)
-        self._teacher_agent_location = self.np_random.integers(0, self.size, size=2, dtype=int)
-        self._student_agent_location = self._teacher_agent_location
-
-        # randomly place target anywhere other than agent
-        self._target_location = self._teacher_agent_location
-        while np.array_equal(self._target_location,self._teacher_agent_location): 
-            self._target_location = self.np_random.integers(0, self.size, size=2, dtype=int)
-
-        # randomly place a random number (between 0 and 1/2 of full grid size) of each special region (goes through region numbers in random order, if overlap then overrides; there's no bias for earlier or later indices because the order is randomized)
-        rng = np.random.default_rng()
-        special_regions_index_order = rng.permutation(range(self._num_types_special_regions)) # permutation returns scrambled array (shuffle doesn't return anything)
-
-        for index in special_regions_index_order: 
-            num_to_place = rng.integers(low=0, high=(self.size**2)//2) # floor division to force high to be integer (floored, so never rounds up)
-            list_of_coords = []
-            for location in range(num_to_place): 
-                coords = self.np_random.integers(0, self.size, size=2, dtype=int)
-                coords = tuple(coords) # I don't want to accidentally change these, so they shouldn't be mutable - they should only ever be replaced with new coords in a new reset (also, its confusing to have a list with lists in it with lists in it, having a tuple at the base level is nice because it lets me know that that is the base level)
-                list_of_coords.append(coords)
-            
-            self._special_regions[index] = list_of_coords
-
-        observations = self._get_obs()
-
-        # dummy infos; "Necessary for proper parallel_to_aec conversion" - https://pettingzoo.farama.org/tutorials/custom_environment/2-environment-logic/
-        infos = {a: {} for a in self.agents}
-
-        return observations, infos
-
     def _get_obs(self): 
-        # get special regions in area visible to each agent
-        teacher_visibility_range = [self._teacher_agent_location[0] - self._visible_region_sizes[0], self._teacher_agent_location[0] + self._visible_region_sizes[0]], [self._teacher_agent_location[1] - self._visible_region_sizes[0], self._teacher_agent_location[1] + self._visible_region_sizes[0]]
-        student_visibility_range = [self._student_agent_location[0] - self._visible_region_sizes[1], self._student_agent_location[0] + self._visible_region_sizes[1]], [self._student_agent_location[1] - self._visible_region_sizes[1], self._student_agent_location[1] + self._visible_region_sizes[1]]]
-        
-        special_regions_visible_to_teacher = [
-            coords for coords_list in self._special_regions for coords in coords_list
-            if coords[0] in range(teacher_visibility_range[0][0], teacher_visibility_range[0][1])
-            and coords[1] in range(teacher_visibility_range[1][0], teacher_visibility_range[1][1])
-        ]
-
-        special_regions_visible_to_student = [
-            coords for coords_list in self._special_regions for coords in coords_list
-            if coords[0] in range(student_visibility_range[0][0], student_visibility_range[0][1])
-            and coords[1] in range(student_visibility_range[1][0], student_visibility_range[1][1])
-        ]
-
-        # observations for each agent (what they get to see)
-        observations = {
-            "teacher": {
-                "teacher_agent": self._teacher_agent_location, # doesn't need to know location of student agent
-                "target": self._target_location, 
-                "special_regions": special_regions_visible_to_teacher,  # agent decides how to deal with these
-            }, 
-            "student": {
-                "teacher_agent": self._teacher_agent_location,
-                "student_agent": self._student_agent_location, 
-                "target": self._target_location, 
-                "special_regions": special_regions_visible_to_student,
-            }
+        return {
+            "teacher_agent": self._teacher_agent_location.copy(),
+            "student_agent": self._student_agent_location.copy(),
+            "target": self._target_location.copy(),
         }
 
-        return observations
+    # copies so that I don't send the np arrays themselves, don't want them to get manipulated at any point by anyone other than this class
+    def get_full_world_state(self): 
+        obs = self._get_obs()
+        obs["special_regions"] = self._special_regions.copy()
+        return obs
 
-    def step(self, actions): 
-        student_direction = self._action_to_direction[actions[0]]
-        teacher_direction = self._action_to_direction[actions[1]]
+    def reset(self, seed=None, options=None) -> tuple[dict, dict]:
+        super().reset(seed=seed)
+        # randomly sets teacher, sets student to same start location as teacher
+        self._teacher_agent_location = self.np_random.integers(0, self.size, size=2, dtype=int)
+        self._student_agent_location = self._teacher_agent_location.copy()
 
-        self._student_agent_location = np.clip(self._student_agent_location + student_direction, 0, self.size-1)
-        self._teacher_agent_location = np.clip(self._teacher_agent_location + teacher_direction, 0, self.size-1)
+        self._target_location = self._teacher_agent_location.copy()
+        while np.array_equal(self._target_location, self._teacher_agent_location):
+            self._target_location = self.np_random.integers(0, self.size, size=2, dtype=int)
 
-        terminations = {"teacher": np.array_equal(self._teacher_agent_location, self._target_location), "student": np.array_equal(self._student_agent_location, self._target_location)}
-        rewards = 1 if terminations else 0
-        observations = self._get_obs()
-        # check for truncation and terminations
-        infos = {a: {} for a in self.agents} # dummy infos
-
-        return observations, rewards, terminations, truncations, infos
-
-    def render(self): 
-        pass
-
-    def observation_space(self, agent): 
-        return self.observation_spaces[agent]
+        special_regions_index_order = self.np_random.permutation(self._num_types_special_regions)
+        for index in special_regions_index_order:
+            num_to_place = self.np_random.integers(low=0, high=(self.size ** 2) // 2)
+            self._special_regions[index] = [
+                tuple(self.np_random.integers(0, self.size, size=2, dtype=int))
+                for _ in range(num_to_place)
+            ]
+        
+        return self._get_obs(), {} # empty info
     
-    @functools.lru_cache(maxsize=None)
-    def action_space(self): 
-        return gym.spaces.Discrete(4) # up, down, left, right
+    def step_location(self, action, agent:str = "teacher"): 
+        direction = self._action_to_direction[action]
+
+        if agent == "teacher": 
+            return np.clip(self._teacher_agent_location + direction, 0, self.size-1)
+        else: 
+            return np.clip(self._student_agent_location + direction, 0, self.size-1)
+    
+    def step_one_agent(self, action, agent:str = "teacher"): 
+        if agent == "teacher": 
+            self._teacher_agent_location = self.step_location(action)
+        else: 
+            self._student_agent_location = self.step_location(action)
+        
+        terminations = {"teacher": np.array_equal(self._teacher_agent_location, self._target_location), "student": np.array_equal(self._student_agent_location, self._target_location)}
+        truncated = False
+        rewards = {"teacher": 1 if terminations["teacher"] else 0, "student": 1 if terminations["student"] else 0}
+        full_observations = self.get_full_world_state()
+        # check for truncation and terminations
+        infos = {"teacher": {}, "student": {}}
+
+        return full_observations, rewards, terminations, truncated, infos
+
+
+    def get_curr_special_region(self, agent): 
+        agent_location = self._student_agent_location
+        if agent == "teacher": 
+            agent_location = self._teacher_agent_location
+        for i, region in enumerate(self._special_regions): 
+            for coords in region: 
+                if coords[0] == agent_location[0] and coords[1] == agent_location[1]: 
+                    return i # regions identified by where they appear in the list
+        
+        return None
+
+    def get_regions_in_visibility(self, agent, visibility_range): 
+        agent_location = self._student_agent_location
+        if agent == "teacher": 
+            agent_location = self._teacher_agent_location
+        x_y_visibility_range = [agent_location[0] - visibility_range, agent_location[0] + visibility_range], [agent_location[1] - visibility_range, agent_location[1] + visibility_range]
+        visible = []
+        for region in self._special_regions: 
+            to_append = [coords for coords in region
+                         if x_y_visibility_range[0][0] <= coords[0] < x_y_visibility_range[0][1]
+                         and x_y_visibility_range[1][0] <= coords[1] < x_y_visibility_range[1][1]
+            ]
+            visible.append(to_append)
+        
+        return visible
+
+class TeacherWrapper(gym.Wrapper): 
+    def __init__(self, env, visibility, special_region_rewards: list[float] = []): # defaults to ignoring regions
+        super().__init__(env)
+        self.env = env
+        self.visibility = visibility
+        
+        # if too short, pad with zeros (no effect) to avoid indexing error in step; otherwise, keep as-is
+        self.special_region_rewards =  list(special_region_rewards) # should create a copy I can work with so I don't mutate the parameter list
+        if self.env._num_types_special_regions - len(special_region_rewards) > 0: 
+            self.special_region_rewards += [0] * (self.env._num_types_special_regions - len(special_region_rewards))
+        self.path = [] # teacher needs to record coordinates visited (path) so that student can access it for training (only used in phase 2, where student trains from teacher example)
+    
+    def step(self, action): 
+        full_obs, rewards, terminations, truncated, info = self.env.step_one_agent(action)
+        
+        reward = rewards["teacher"]
+        terminated = terminations["teacher"]
+
+        # restrict obs to limited visibility area, and don't need to know location of student
+        obs = {
+            "teacher_agent": full_obs["teacher_agent"], # doesn't need to know location of student agent
+            "target": full_obs["target"], 
+            "special_regions": self.env.get_regions_in_visibility("teacher", self.visibility),
+        }
+
+        # update reward based on special_region_rewards values
+        curr_region = self.env.get_curr_special_region("teacher")
+        if curr_region is not None: # in some special region
+            reward = self.special_region_rewards[curr_region]
+        
+        # record new coordinates for student training
+        self.path.append(self.env._teacher_agent_location.copy())
+
+        return obs, reward, terminated, truncated, info
+    
+    def reset(self, seed=None, options=None) -> tuple[dict, dict]: 
+        self.path = []
+        return super().reset(seed=seed, options=options)
