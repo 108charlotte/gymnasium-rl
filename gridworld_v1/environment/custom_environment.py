@@ -4,10 +4,14 @@ from copy import copy
 import functools
 
 class GridWorldBase(gym.Env): 
-    def __init__(self, size=10, num_types_special_regions=0): 
+    def __init__(self, size:int = 10, num_types_special_regions: int = 0, goal_reward: int = 10, step_penalty: float = -0.1): 
         self.size = size
         self._num_types_special_regions = num_types_special_regions
-        self.coords_to_default()
+        self.goal_reward = goal_reward
+        self.step_penalty = step_penalty
+
+        self.coords_to_default() # set coordinates to - values to show that they are uninitialized
+
         self.action_space = gym.spaces.Discrete(4)
         self.observation_space = gym.spaces.Dict({ # leaving special_regions out of this, will be dealt with in wrappers seperately
             "teacher_agent": gym.spaces.Box(0, size-1, shape=(2,), dtype=np.int32), 
@@ -25,7 +29,7 @@ class GridWorldBase(gym.Env):
         self._teacher_agent_location = np.array([-1, -1], dtype=np.int32)
         self._student_agent_location = np.array([-1, -1], dtype=np.int32)
         self._target_location = np.array([-1, -1], dtype=np.int32)
-        self._special_regions = np.array([[()] for special_region in range(self._num_types_special_regions)], dtype=object)  # each index corresponds to a different type of region, and the values in the list are each tuples of coordinates where the region is
+        self._special_regions = [[] for special_region in range(self._num_types_special_regions)]  # each index corresponds to a different type of region, and the values in the list are each tuples of coordinates where the region is
     
     def _get_obs(self): 
         return {
@@ -70,13 +74,14 @@ class GridWorldBase(gym.Env):
     
     def step_one_agent(self, action, agent:str = "teacher"): 
         if agent == "teacher": 
-            self._teacher_agent_location = self.step_location(action)
+            self._teacher_agent_location = self.step_location(action, "teacher")
         else: 
-            self._student_agent_location = self.step_location(action)
+            self._student_agent_location = self.step_location(action, "student")
         
         terminations = {"teacher": np.array_equal(self._teacher_agent_location, self._target_location), "student": np.array_equal(self._student_agent_location, self._target_location)}
         truncated = False
-        rewards = {"teacher": 1 if terminations["teacher"] else 0, "student": 1 if terminations["student"] else 0}
+        # unless overridden later by special area rules for teacher, small penalties for all areas except for goal to encourage going to goal
+        rewards = {"teacher": self.goal_reward if terminations["teacher"] else self.step_penalty, "student": self.goal_reward if terminations["student"] else self.step_penalty}
         full_observations = self.get_full_world_state()
         # check for truncation and terminations
         infos = {"teacher": {}, "student": {}}
@@ -109,12 +114,61 @@ class GridWorldBase(gym.Env):
             visible.append(to_append)
         
         return visible
+    
+    def make_grid(self): 
+        channels = []
+        teacher_grid = self.make_empty_world_size_grid()
+        teacher_grid[self._teacher_agent_location[0], self._teacher_agent_location[1]] = 1
+
+        student_grid = self.make_empty_world_size_grid()
+        student_grid[self._student_agent_location[0], self._student_agent_location[1]] = 1
+
+        target_grid = self.make_empty_world_size_grid()
+        target_grid[self._target_location[0], self._target_location[1]] = 1
+
+        channels.append(teacher_grid)
+        channels.append(student_grid)
+        channels.append(target_grid)
+
+        for i, region in enumerate(self._special_regions): 
+            region_grid = self.make_empty_world_size_grid()
+            for coords in region: 
+                region_grid[coords[0], coords[1]] = 1
+            channels.append(region_grid) # in ordering of labels (0 first, then 1, then 2, etc.)
+        
+        return np.array(channels)
+    
+    def make_empty_world_size_grid(self): 
+        grid = np.zeros((self.size, self.size), dtype=np.float32)
+        # grid = [[0 for row in range(self.size)] for col in range(self.size)]
+        return grid
+    
+    def render(self): 
+        # build grid 2d list
+        grid = [["." for row in range(self.size)] for col in range(self.size)] # empty but correct size
+
+        for i, region in enumerate(self._special_regions): 
+            for coords in region: 
+                grid[coords[0]][coords[1]] = i + 4 # don't want to overlap w/ teacher 1 and student 2 and target 3
+
+        # these override region visibilities
+        grid[self._teacher_agent_location[0]][self._teacher_agent_location[1]] = "T"
+        grid[self._student_agent_location[0]][self._student_agent_location[1]] = "S"
+        grid[self._target_location[0]][self._target_location[1]] = "G"
+
+        for row in grid:
+            print(row)
+        print('') # To add some space between renders for each step
+
+
 
 class TeacherWrapper(gym.Wrapper): 
-    def __init__(self, env, visibility, special_region_rewards: list[float] = []): # defaults to ignoring regions
+    def __init__(self, env, visibility = None, special_region_rewards: list[float] = []): # if visibility not passed just sees whole world, defaults to ignoring regions
         super().__init__(env)
         self.env = env
         self.visibility = visibility
+        if visibility is None: 
+            self.visibility = self.env.size
         
         # if too short, pad with zeros (no effect) to avoid indexing error in step; otherwise, keep as-is
         self.special_region_rewards =  list(special_region_rewards) # should create a copy I can work with so I don't mutate the parameter list

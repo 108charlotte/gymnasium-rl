@@ -1,4 +1,3 @@
-# %% [imports & env setup]
 # ok I just deleted everything :'(
 # for now, I'll just copy everything from the tutorial, bc I'm not re-writing all of that
 from collections import defaultdict
@@ -209,7 +208,6 @@ for episode in tqdm(range(n_episodes)):
     # Reduce exploration rate (agent becomes less random over time)
     agent.decay_epsilon()
 
-# %% [training results]
 from matplotlib import pyplot as plt
 
 def get_moving_avgs(arr, window, convolution_mode):

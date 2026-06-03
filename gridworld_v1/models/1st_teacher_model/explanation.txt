@@ -1,0 +1,1 @@
+This model was trained without a step penalty but with penalties for certain regions, and would often not attempt to reach the goal. It was trained with 2 special regions, 1 had a penalty of -1 and the other had no penalty (like all other areas in the world). It was trained in a size 7 gridworld. 
