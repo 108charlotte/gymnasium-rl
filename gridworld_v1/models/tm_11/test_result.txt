@@ -1,0 +1,2 @@
+Test 1:
+error in equality comparison in custom environment; plot shows that model wasn't good anyways though

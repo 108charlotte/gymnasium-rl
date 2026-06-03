@@ -79,7 +79,7 @@ class GridWorldBase(gym.Env):
             self._student_agent_location = self.step_location(action, "student")
         
         terminations = {"teacher": np.array_equal(self._teacher_agent_location, self._target_location), "student": np.array_equal(self._student_agent_location, self._target_location)}
-        truncated = False
+        truncated = False # will be overridden in wrappers, since wrappers keep track of steps for each agent (not part of world environment)
         # unless overridden later by special area rules for teacher, small penalties for all areas except for goal to encourage going to goal
         rewards = {"teacher": self.goal_reward if terminations["teacher"] else self.step_penalty, "student": self.goal_reward if terminations["student"] else self.step_penalty}
         full_observations = self.get_full_world_state()
@@ -100,7 +100,9 @@ class GridWorldBase(gym.Env):
         
         return None
 
-    def get_regions_in_visibility(self, agent, visibility_range): 
+    def get_regions_in_visibility(self, agent, visibility_range = None): 
+        if visibility_range is None: 
+            visibility_range = self.size # full world, no limited visibility
         agent_location = self._student_agent_location
         if agent == "teacher": 
             agent_location = self._teacher_agent_location
@@ -171,15 +173,18 @@ class GridWorldBase(gym.Env):
     
     def render(self): 
         # build grid 2d list
-        grid = [["." for row in range(self.size)] for col in range(self.size)] # empty but correct size
+        grid = [["  " for row in range(self.size)] for col in range(self.size)] # empty but correct size
 
         for i, region in enumerate(self._special_regions): 
             for coords in region: 
                 grid[coords[0]][coords[1]] = i + 4 # don't want to overlap w/ teacher 1 and student 2 and target 3
 
         # these override region visibilities
-        grid[self._teacher_agent_location[0]][self._teacher_agent_location[1]] = "T"
-        grid[self._student_agent_location[0]][self._student_agent_location[1]] = "S"
+        if not np.array_equal(self._teacher_agent_location, self._student_agent_location): 
+            grid[self._teacher_agent_location[0]][self._teacher_agent_location[1]] = "T"
+            grid[self._student_agent_location[0]][self._student_agent_location[1]] = "S"
+        else: 
+            grid[self._teacher_agent_location[0]][self._teacher_agent_location[1]] = "TS"
         grid[self._target_location[0]][self._target_location[1]] = "G"
 
         for row in grid:
@@ -189,24 +194,30 @@ class GridWorldBase(gym.Env):
 
 
 class TeacherWrapper(gym.Wrapper): 
-    def __init__(self, env, visibility = None, special_region_rewards: list[float] = []): # if visibility not passed just sees whole world, defaults to ignoring regions
+    def __init__(self, env, max_steps: int = 50, visibility = None, special_region_rewards: list[float] = []): # if visibility not passed just sees whole world, defaults to ignoring regions
         super().__init__(env)
         self.env = env
         self.visibility = visibility
         if visibility is None: 
             self.visibility = self.env.size
         
+        self.max_steps = max_steps if max_steps is not None else float('inf') # if none, then no max
+        self.num_steps = 0 # init value
+        
         # if too short, pad with zeros (no effect) to avoid indexing error in step; otherwise, keep as-is
         self.special_region_rewards =  list(special_region_rewards) # should create a copy I can work with so I don't mutate the parameter list
         if self.env._num_types_special_regions - len(special_region_rewards) > 0: 
             self.special_region_rewards += [0] * (self.env._num_types_special_regions - len(special_region_rewards))
-        self.path = [] # teacher needs to record coordinates visited (path) so that student can access it for training (only used in phase 2, where student trains from teacher example)
+        self.path = [] # start with starting location; teacher needs to record coordinates visited (path) so that student can access it for training (only used in phase 2, where student trains from teacher example)
     
     def step(self, action): 
-        full_obs, rewards, terminations, truncated, info = self.env.step_one_agent(action)
+        full_obs, rewards, terminations, _, info = self.env.step_one_agent(action)
+
+        self.num_steps += 1
         
         reward = rewards["teacher"]
         terminated = terminations["teacher"]
+        truncated = self.max_steps <= self.num_steps
 
         # restrict obs to limited visibility area, and don't need to know location of student
         obs = {
@@ -226,5 +237,15 @@ class TeacherWrapper(gym.Wrapper):
         return obs, reward, terminated, truncated, info
     
     def reset(self, seed=None, options=None) -> tuple[dict, dict]: 
-        self.path = []
-        return super().reset(seed=seed, options=options)
+        base_obs, info = self.env.reset(seed=seed, options=options) # trigger base env reset (makes sure I have valid coords for teacher agent start)
+
+        self.path = [self.env._teacher_agent_location.copy()]
+        self.num_steps = 0
+        
+        teacher_obs = {
+            "teacher_agent": base_obs["teacher_agent"],
+            "target": base_obs["target"],
+            "special_regions": self.env.get_regions_in_visibility("teacher", self.visibility),
+        }
+        
+        return teacher_obs, info
