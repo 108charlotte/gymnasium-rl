@@ -77,8 +77,10 @@ class TeacherAgent:
                 q_values = self.model(state)
             action = q_values.argmax(dim=1).item()
         
+        ''' epsilon decay now occurs per-episode and is called in training loop
         if self.epsilon > self.final_epsilon: 
             self.epsilon *= self.epsilon_decay
+        '''
         
         return action
     
@@ -92,7 +94,7 @@ class TeacherAgent:
 
         current_q_values = self.model(states).gather(1, actions.unsqueeze(1)).squeeze(1) # gather 1 is gather on dimension 1 (cols), in the output of model(states) each row is an experience and each col is the q val for a possible action, so by using gather with actions you're getting the q values for only the actions that were taken in each experience
         with torch.no_grad():
-            next_q_values = self.model(next_states).max(dim=1).values
+            next_q_values = self.target_model(next_states).max(dim=1).values
 
         target_q_values = rewards + self.discount_factor * next_q_values * (1 - dones)
         
@@ -107,6 +109,15 @@ class TeacherAgent:
             self.target_model.load_state_dict(self.model.state_dict())
 
         return loss.item() # for visualization
+    
+    def load_model_from_saved(self, path_to_save):
+        checkpoint = torch.load(path_to_save, map_location=self.device)
+
+        self.model.load_state_dict(checkpoint["model_state_dict"])
+        self.target_model.load_state_dict(checkpoint["model_state_dict"])
+        
+        print("loaded weights and hyperparams")
+
 
 
 # https://medium.com/data-science/develop-your-first-ai-agent-deep-q-learning-375876ee2472#b396
