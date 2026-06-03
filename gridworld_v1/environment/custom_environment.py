@@ -140,7 +140,7 @@ class GridWorldBase(gym.Env):
         
         return np.array(channels)
     
-    # don't want to pollute with random other knowledge
+    # don't want to pollute with location of other agent, in format for CNN to take in (different channel for agent, target, and each region)
     def make_one_agent_grid(self, agent): 
         channels = []
         if agent == "teacher": 

@@ -58,7 +58,7 @@ class TeacherAgent:
         self.num_filters_first_layer = num_filters_first_layer
         self.model = self.build_model()
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
-        self.loss_fn = nn.MSELoss()
+        self.loss_fn = nn.HuberLoss()
         self.target_update_freq = target_update_freq
     
     def build_model(self): 
@@ -77,12 +77,11 @@ class TeacherAgent:
                 q_values = self.model(state)
             action = q_values.argmax(dim=1).item()
         
-        ''' epsilon decay now occurs per-episode and is called in training loop
-        if self.epsilon > self.final_epsilon: 
-            self.epsilon *= self.epsilon_decay
-        '''
-        
         return action
+    
+    def decay_epsilon(self): 
+        if self.epsilon > self.final_epsilon: 
+            self.epsilon = max(self.epsilon_decay * self.epsilon, self.final_epsilon) # never go below final
     
     def learn(self, experiences): 
         # float32 bc that's what the ANN expects, by default with torch.tensor would be float64
