@@ -15,7 +15,8 @@ class CNN(torch.nn.Module): # CNN because should have spatial reasoning
             final_conv_filters = num_filters_first_layer * 2
 
         self.model = nn.Sequential(
-            nn.Conv2d(2 + num_types_special_regions, num_filters_first_layer, kernel_size=3, padding=1), # sees agent, target, and extra regions (not other agent)
+            # 4: agent + target + target column delta + target row delta
+            nn.Conv2d(4 + num_types_special_regions, num_filters_first_layer, kernel_size=3, padding=1), # sees agent, target, and extra regions (not other agent)
             nn.ReLU(), 
             nn.Conv2d(num_filters_first_layer, final_conv_filters, kernel_size=3, padding=1), # outputs 4D tensor
             nn.ReLU(), 

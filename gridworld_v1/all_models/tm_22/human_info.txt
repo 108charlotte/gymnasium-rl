@@ -1,0 +1,20 @@
+grid_size = 4
+learning_rate = 0.001
+initial_epsilon = 1
+epsilon_decay = 0.995
+final_epsilon = 0.01
+num_filters_first_layer = 8
+discount_factor = 0.99
+episodes = 2500
+max_steps = 16
+target_update_freq = 500
+goal_reward = 10
+num_special_regions = 0
+special_region_rewards = []
+experience_capacity = 2000
+batch_size = 128
+visibility = 7
+
+
+Training Time: 07:24
+Notes: used setting visibility to create a set observation window with relative coordinates inside (agent-centric, so agent always at center of visibility square) and adding 2 more channels to feed into the CNN: one with the normalized (scaled by size) distance to the target column wise, and the other the same but with rows, allowing the agent to seek out the target while not being blind but also not knowing its exact location until its in visibility (like knowing, in general, on a map which direction you have to go, or using a compass, or knowing a general way to home

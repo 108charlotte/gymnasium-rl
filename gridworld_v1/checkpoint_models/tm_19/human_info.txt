@@ -1,0 +1,1 @@
+there doesn't appear to have been one in here, but its in checkpoint_models because it (like 17, but with fewer episodes) worked well with a basic grid of fixed size, but failed to generalize on larger grids (see tm_20 where I tested this)

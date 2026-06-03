@@ -156,7 +156,7 @@ class GridWorldBase(gym.Env):
         return np.array(channels)
     
     # don't want to pollute with location of other agent, in format for CNN to take in (different channel for agent, target, and each region)
-    def make_one_agent_grid(self, agent, visibility): 
+    def make_one_agent_grid(self, agent): 
         # scale down to fixed size based on visibility
         channels = []
 
@@ -207,6 +207,16 @@ class GridWorldBase(gym.Env):
             target_grid[self._target_location[0] - agent_coords[0] + visibility, self._target_location[1] - agent_coords[1] + visibility] = 1
         channels.append(target_grid)
 
+        # what if target isn't currently visible? the relative location compared to the agent of target will be part of the observation given to the CNN (delta values)
+        # this makes logical sense in the example of a human driver navigating to a location, since they have access to google maps and know the distance to that location
+        # or a person or animal who knows the general direction they have to go to get to a location even if they don't know the exact location itself
+        dist_to_target_row = (self._target_location[0] - agent_coords[0]) / self.size # normalizing by size to get something between -1 and 1 (like values in other channels of the CNN)
+        dist_to_target_col = (self._target_location[1] - agent_coords[1]) / self.size
+        delta_row_grid = np.full((2*visibility + 1, 2*visibility + 1), dist_to_target_row, dtype=np.float32)
+        delta_col_grid = np.full((2*visibility + 1, 2*visibility + 1), dist_to_target_col, dtype=np.float32)
+        channels.append(delta_row_grid)
+        channels.append(delta_col_grid)
+
         return np.array(channels)
 
     
@@ -248,12 +258,10 @@ class GridWorldBase(gym.Env):
 
 
 class TeacherWrapper(gym.Wrapper): 
-    def __init__(self, env, max_steps: int = 50, visibility = None, special_region_rewards: list[float] = []): # if visibility not passed just sees whole world, defaults to ignoring regions
+    def __init__(self, env, visibility : int, max_steps: int = 50, special_region_rewards: list[float] = []): # if visibility not passed just sees whole world, defaults to ignoring regions
         super().__init__(env)
         self.env = env
         self.visibility = visibility
-        if visibility is None: 
-            self.visibility = self.env.size
         
         self.max_steps = max_steps if max_steps is not None else float('inf') # if none, then no max
         self.num_steps = 0 # init value
