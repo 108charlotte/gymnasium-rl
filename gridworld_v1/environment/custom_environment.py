@@ -112,6 +112,12 @@ class GridWorldBase(gym.Env):
                     return i # regions identified by where they appear in the list
         
         return None
+    
+    def is_in_visibility_region(self, agent_location, coords, visibility_range = None): 
+        if visibility_range is None: 
+            return True
+        x_y_visibility_range = [agent_location[0] - visibility_range, agent_location[0] + visibility_range], [agent_location[1] - visibility_range, agent_location[1] + visibility_range]
+        return x_y_visibility_range[0][0] <= coords[0] < x_y_visibility_range[0][1] and x_y_visibility_range[1][0] <= coords[1] < x_y_visibility_range[1][1]
 
     def get_regions_in_visibility(self, agent, visibility_range = None): 
         if visibility_range is None: 
@@ -119,26 +125,22 @@ class GridWorldBase(gym.Env):
         agent_location = self._student_agent_location
         if agent == "teacher": 
             agent_location = self._teacher_agent_location
-        x_y_visibility_range = [agent_location[0] - visibility_range, agent_location[0] + visibility_range], [agent_location[1] - visibility_range, agent_location[1] + visibility_range]
         visible = []
         for region in self._special_regions: 
-            to_append = [coords for coords in region
-                         if x_y_visibility_range[0][0] <= coords[0] < x_y_visibility_range[0][1]
-                         and x_y_visibility_range[1][0] <= coords[1] < x_y_visibility_range[1][1]
-            ]
+            to_append = [coords for coords in region if self.is_in_visibility_region(agent_location, coords, visibility_range)]
             visible.append(to_append)
         
         return visible
     
     def make_grid(self): 
         channels = []
-        teacher_grid = self.make_empty_world_size_grid()
+        teacher_grid = self.make_empty_grid()
         teacher_grid[self._teacher_agent_location[0], self._teacher_agent_location[1]] = 1
 
-        student_grid = self.make_empty_world_size_grid()
+        student_grid = self.make_empty_grid()
         student_grid[self._student_agent_location[0], self._student_agent_location[1]] = 1
 
-        target_grid = self.make_empty_world_size_grid()
+        target_grid = self.make_empty_grid()
         target_grid[self._target_location[0], self._target_location[1]] = 1
 
         channels.append(teacher_grid)
@@ -146,7 +148,7 @@ class GridWorldBase(gym.Env):
         channels.append(target_grid)
 
         for i, region in enumerate(self._special_regions): 
-            region_grid = self.make_empty_world_size_grid()
+            region_grid = self.make_empty_grid()
             for coords in region: 
                 region_grid[coords[0], coords[1]] = 1
             channels.append(region_grid) # in ordering of labels (0 first, then 1, then 2, etc.)
@@ -154,33 +156,64 @@ class GridWorldBase(gym.Env):
         return np.array(channels)
     
     # don't want to pollute with location of other agent, in format for CNN to take in (different channel for agent, target, and each region)
-    def make_one_agent_grid(self, agent): 
+    def make_one_agent_grid(self, agent, visibility): 
+        # scale down to fixed size based on visibility
         channels = []
-        if agent == "teacher": 
-            teacher_grid = self.make_empty_world_size_grid()
-            teacher_grid[self._teacher_agent_location[0], self._teacher_agent_location[1]] = 1
-            channels.append(teacher_grid)
-        else: 
-            student_grid = self.make_empty_world_size_grid()
-            student_grid[self._student_agent_location[0], self._student_agent_location[1]] = 1
-            channels.append(student_grid)
 
-        target_grid = self.make_empty_world_size_grid()
+        agent_grid = self.make_empty_grid()
+        if agent == "teacher": 
+            agent_grid[self._teacher_agent_location[0], self._teacher_agent_location[1]] = 1
+        else: 
+            agent_grid[self._student_agent_location[0], self._student_agent_location[1]] = 1
+        channels.append(agent_grid)
+
+        target_grid = self.make_empty_grid()
         target_grid[self._target_location[0], self._target_location[1]] = 1
 
         channels.append(target_grid)
 
         for i, region in enumerate(self._special_regions): 
-            region_grid = self.make_empty_world_size_grid()
+            region_grid = self.make_empty_grid()
             for coords in region: 
                 region_grid[coords[0], coords[1]] = 1
             channels.append(region_grid) # in ordering of labels (0 first, then 1, then 2, etc.)
         
         return np.array(channels)
+    
+    # don't want to pollute with location of other agent, in format for CNN to take in (different channel for agent, target, and each region)
+    def make_one_agent_grid_relative(self, agent, visibility): 
+        # scale down to fixed size based on visibility
+        channels = []
+        agent_grid = self.make_empty_grid(2*visibility + 1) # visibility on both sides + agent cell
+        agent_grid[visibility, visibility] = 1 # agent-centric
+
+        agent_coords = self._teacher_agent_location
+        if agent == "student": 
+            agent_coords = self._student_agent_location
+
+        channels.append(agent_grid)
+        special_regions = self.get_regions_in_visibility(agent, visibility)
+
+        for special_region in special_regions: 
+            region_grid = self.make_empty_grid(2*visibility + 1)
+            for coords in special_region: 
+                rel_coords = (coords[0] - agent_coords[0] + visibility, coords[1] - agent_coords[1] + visibility)
+                region_grid[rel_coords[0], rel_coords[1]] = 1
+            channels.append(region_grid)
+
+        target = self._target_location
+        target_grid = self.make_empty_grid(2*visibility + 1)
+        if self.is_in_visibility_region(agent_coords, target, visibility): 
+            target_grid[self._target_location[0] - agent_coords[0] + visibility, self._target_location[1] - agent_coords[1] + visibility] = 1
+        channels.append(target_grid)
+
+        return np.array(channels)
 
     
-    def make_empty_world_size_grid(self): 
-        grid = np.zeros((self.size, self.size), dtype=np.float32)
+    def make_empty_grid(self, size = None): 
+        if size is None: 
+            size = self.size
+        grid = np.zeros((size, size), dtype=np.float32)
         # grid = [[0 for row in range(self.size)] for col in range(self.size)]
         return grid
     

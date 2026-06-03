@@ -35,7 +35,7 @@ class CNN(torch.nn.Module): # CNN because should have spatial reasoning
 # and the DQN is this: https://medium.com/data-science/develop-your-first-ai-agent-deep-q-learning-375876ee2472#b396
 class TeacherAgent: 
     def __init__(self, 
-                 env: gym.Env, 
+                 num_types_special_regions_in_env: int, 
                  learning_rate: float, 
                  initial_epsilon: float, 
                  epsilon_decay: float, 
@@ -46,7 +46,7 @@ class TeacherAgent:
                  target_update_freq: int = 1000, 
                  discount_factor: float = 0.95,
                 ): 
-        self.env = env
+        self.num_types_special_regions_in_env = num_types_special_regions_in_env
         self.learning_rate = learning_rate
 
         self.epsilon = initial_epsilon
@@ -73,7 +73,7 @@ class TeacherAgent:
     
     def build_model(self): 
         print(f"Using {self.device} device")
-        model = CNN(self.env._num_types_special_regions, self.num_filters_first_layer, self.final_conv_filters, self.target_spatial_size).to(self.device)
+        model = CNN(self.num_types_special_regions_in_env, self.num_filters_first_layer, self.final_conv_filters, self.target_spatial_size).to(self.device)
         self.target_model = copy.deepcopy(model).to(self.device)
         self.steps_done = 0
         return model
