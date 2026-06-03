@@ -4,11 +4,12 @@ from copy import copy
 import functools
 
 class GridWorldBase(gym.Env): 
-    def __init__(self, size:int = 10, num_types_special_regions: int = 0, goal_reward: int = 10, step_penalty: float = -0.1): 
+    def __init__(self, size:int = 10, num_types_special_regions: int = 0, goal_reward: int = 10, step_penalty: float = -0.1, wall_penalty = None): 
         self.size = size
         self._num_types_special_regions = num_types_special_regions
         self.goal_reward = goal_reward
         self.step_penalty = step_penalty
+        self.wall_penalty = wall_penalty if wall_penalty is not None else step_penalty # treat stepping into wall like anything else
 
         self.coords_to_default() # set coordinates to - values to show that they are uninitialized
 
@@ -63,25 +64,37 @@ class GridWorldBase(gym.Env):
             ]
         
         return self._get_obs(), {} # empty info
-    
-    def step_location(self, action, agent:str = "teacher"): 
-        direction = self._action_to_direction[action]
 
-        if agent == "teacher": 
-            return np.clip(self._teacher_agent_location + direction, 0, self.size-1)
-        else: 
-            return np.clip(self._student_agent_location + direction, 0, self.size-1)
+    def calc_base_reward(self, hit_wall, at_goal): # base reward here means reward from BaseGridEnv, since it may be overriden by the teacher wrapper for special regions
+        if at_goal: 
+            return self.goal_reward
+        elif hit_wall: 
+            return self.wall_penalty
+        return self.step_penalty
+
+    def get_new_loc_and_if_hit_wall(self, direction, original_location): 
+        new_location = original_location + direction
+        if new_location[0] < 0 or new_location[0] > self.size-1 or new_location[1] < 0 or new_location[1] > self.size-1: 
+            return (original_location, True) # true for hit wall
+        return (new_location, False) # didn't hit wall (new location w/ in size bounds)
     
     def step_one_agent(self, action, agent:str = "teacher"): 
+        direction = self._action_to_direction[action]
+        hit_wall = False # will penalize in rewards
+
         if agent == "teacher": 
-            self._teacher_agent_location = self.step_location(action, "teacher")
+            loc_and_hit_wall = self.get_new_loc_and_if_hit_wall(direction, self._teacher_agent_location)
+            self._teacher_agent_location = loc_and_hit_wall[0]
+            hit_wall = loc_and_hit_wall[1]
         else: 
-            self._student_agent_location = self.step_location(action, "student")
+            loc_and_hit_wall = self.get_new_loc_and_if_hit_wall(direction, self._student_agent_location)
+            self._student_agent_location = loc_and_hit_wall[0]
+            hit_wall = loc_and_hit_wall[1]
         
         terminations = {"teacher": np.array_equal(self._teacher_agent_location, self._target_location), "student": np.array_equal(self._student_agent_location, self._target_location)}
         truncated = False # will be overridden in wrappers, since wrappers keep track of steps for each agent (not part of world environment)
         # unless overridden later by special area rules for teacher, small penalties for all areas except for goal to encourage going to goal
-        rewards = {"teacher": self.goal_reward if terminations["teacher"] else self.step_penalty, "student": self.goal_reward if terminations["student"] else self.step_penalty}
+        rewards = {"teacher": self.calc_base_reward(hit_wall, terminations["teacher"]), "student": self.calc_base_reward(hit_wall, terminations["student"])}
         full_observations = self.get_full_world_state()
         # check for truncation and terminations
         infos = {"teacher": {}, "student": {}}
@@ -180,12 +193,20 @@ class GridWorldBase(gym.Env):
                 grid[coords[0]][coords[1]] = i + 4 # don't want to overlap w/ teacher 1 and student 2 and target 3
 
         # these override region visibilities
+        # make sure student doesn't override teacher
         if not np.array_equal(self._teacher_agent_location, self._student_agent_location): 
             grid[self._teacher_agent_location[0]][self._teacher_agent_location[1]] = "T"
             grid[self._student_agent_location[0]][self._student_agent_location[1]] = "S"
         else: 
             grid[self._teacher_agent_location[0]][self._teacher_agent_location[1]] = "TS"
-        grid[self._target_location[0]][self._target_location[1]] = "G"
+        
+        # show when goal reached
+        if np.array_equal(self._teacher_agent_location, self._target_location): 
+            grid[self._target_location[0]][self._target_location[1]] = "T🎉"
+        elif np.array_equal(self._student_agent_location, self._target_location): 
+            grid[self._target_location[0]][self._target_location[1]] = "S🎉"
+        else: 
+            grid[self._target_location[0]][self._target_location[1]] = "G"
 
         for row in grid:
             print(row)

@@ -8,18 +8,22 @@ import random
 import copy
 
 class CNN(torch.nn.Module): # CNN because should have spatial reasoning
-    def __init__(self, num_types_special_regions, world_size, num_filters_first_layer): 
+    def __init__(self, num_types_special_regions, num_filters_first_layer, final_conv_filters, target_spatial_size): 
         super().__init__()
+
+        if final_conv_filters is None: 
+            final_conv_filters = num_filters_first_layer * 2
 
         self.model = nn.Sequential(
             nn.Conv2d(2 + num_types_special_regions, num_filters_first_layer, kernel_size=3, padding=1), # sees agent, target, and extra regions (not other agent)
             nn.ReLU(), 
-            nn.Conv2d(num_filters_first_layer, num_filters_first_layer*2, kernel_size=3, padding=1), 
+            nn.Conv2d(num_filters_first_layer, final_conv_filters, kernel_size=3, padding=1), # outputs 4D tensor
             nn.ReLU(), 
-            nn.Flatten(),
-            nn.Linear(num_filters_first_layer*2 * world_size**2, 64), 
+            nn.AdaptiveAvgPool2d((target_spatial_size, target_spatial_size)), # squash spatial layout, keep features seperate - need to review this, because having trouble making sense of it conceptually
+            nn.Flatten(), 
+            nn.Linear(final_conv_filters * target_spatial_size**2, final_conv_filters // 2), 
             nn.ReLU(), 
-            nn.Linear(64, 4) # up, down, left, right (space has 4 discrete actions)
+            nn.Linear(final_conv_filters // 2, 4) # up, down, left, right (space has 4 discrete actions)
         )
     
     def forward(self, input): 
@@ -37,6 +41,8 @@ class TeacherAgent:
                  epsilon_decay: float, 
                  final_epsilon: float, 
                  num_filters_first_layer = 16, 
+                 final_conv_filters = 32, 
+                 target_spatial_size = 3, 
                  target_update_freq: int = 1000, 
                  discount_factor: float = 0.95,
                 ): 
@@ -55,15 +61,19 @@ class TeacherAgent:
             "mps" if torch.backends.mps.is_available() else
             "cpu"
         )
+
         self.num_filters_first_layer = num_filters_first_layer
+        self.final_conv_filters = final_conv_filters
+        self.target_spatial_size = target_spatial_size
         self.model = self.build_model()
+
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
         self.loss_fn = nn.HuberLoss()
         self.target_update_freq = target_update_freq
     
     def build_model(self): 
         print(f"Using {self.device} device")
-        model = CNN(self.env._num_types_special_regions, self.env.size, self.num_filters_first_layer).to(self.device)
+        model = CNN(self.env._num_types_special_regions, self.num_filters_first_layer, self.final_conv_filters, self.target_spatial_size).to(self.device)
         self.target_model = copy.deepcopy(model).to(self.device)
         self.steps_done = 0
         return model
