@@ -5,13 +5,14 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import random
+import copy
 
 class CNN(torch.nn.Module): # CNN because should have spatial reasoning
     def __init__(self, num_types_special_regions, world_size, num_filters_first_layer): 
         super().__init__()
 
         self.model = nn.Sequential(
-            nn.Conv2d(3 + num_types_special_regions, num_filters_first_layer, kernel_size=3, padding=1), 
+            nn.Conv2d(2 + num_types_special_regions, num_filters_first_layer, kernel_size=3, padding=1), # sees agent, target, and extra regions (not other agent)
             nn.ReLU(), 
             nn.Conv2d(num_filters_first_layer, num_filters_first_layer*2, kernel_size=3, padding=1), 
             nn.ReLU(), 
@@ -36,6 +37,7 @@ class TeacherAgent:
                  epsilon_decay: float, 
                  final_epsilon: float, 
                  num_filters_first_layer = 16, 
+                 target_update_freq: int = 1000, 
                  discount_factor: float = 0.95,
                 ): 
         self.env = env
@@ -57,10 +59,13 @@ class TeacherAgent:
         self.model = self.build_model()
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
         self.loss_fn = nn.MSELoss()
+        self.target_update_freq = target_update_freq
     
     def build_model(self): 
         print(f"Using {self.device} device")
         model = CNN(self.env._num_types_special_regions, self.env.size, self.num_filters_first_layer).to(self.device)
+        self.target_model = copy.deepcopy(model).to(self.device)
+        self.steps_done = 0
         return model
     
     def get_action(self, state): 
@@ -94,7 +99,12 @@ class TeacherAgent:
         loss = self.loss_fn(current_q_values, target_q_values)
         self.optimizer.zero_grad()
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0) # gradient clipping
         self.optimizer.step()
+
+        self.steps_done += 1
+        if self.steps_done % self.target_update_freq == 0:
+            self.target_model.load_state_dict(self.model.state_dict())
 
         return loss.item() # for visualization
 

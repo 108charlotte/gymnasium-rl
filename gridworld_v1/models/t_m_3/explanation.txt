@@ -1,0 +1,1 @@
+This model is the same, and number of steps actually got higher over training, so I'm clearly doing something wrong but I'm not sure what

@@ -138,6 +138,32 @@ class GridWorldBase(gym.Env):
         
         return np.array(channels)
     
+    # don't want to pollute with random other knowledge
+    def make_one_agent_grid(self, agent): 
+        channels = []
+        if agent == "teacher": 
+            teacher_grid = self.make_empty_world_size_grid()
+            teacher_grid[self._teacher_agent_location[0], self._teacher_agent_location[1]] = 1
+            channels.append(teacher_grid)
+        else: 
+            student_grid = self.make_empty_world_size_grid()
+            student_grid[self._student_agent_location[0], self._student_agent_location[1]] = 1
+            channels.append(student_grid)
+
+        target_grid = self.make_empty_world_size_grid()
+        target_grid[self._target_location[0], self._target_location[1]] = 1
+
+        channels.append(target_grid)
+
+        for i, region in enumerate(self._special_regions): 
+            region_grid = self.make_empty_world_size_grid()
+            for coords in region: 
+                region_grid[coords[0], coords[1]] = 1
+            channels.append(region_grid) # in ordering of labels (0 first, then 1, then 2, etc.)
+        
+        return np.array(channels)
+
+    
     def make_empty_world_size_grid(self): 
         grid = np.zeros((self.size, self.size), dtype=np.float32)
         # grid = [[0 for row in range(self.size)] for col in range(self.size)]

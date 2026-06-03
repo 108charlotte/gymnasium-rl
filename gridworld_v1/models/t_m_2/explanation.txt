@@ -1,0 +1,1 @@
+also unsuccessful and does not go towards goal even though not trained with any special zones w/ penalty; never learned to reach goal for some reason. I'm not sure what's going on, but I'm trying a faster training with faster hyperparameters so we'll see how that goes. 
