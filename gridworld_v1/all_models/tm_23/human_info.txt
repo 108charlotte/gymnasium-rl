@@ -1,0 +1,20 @@
+grid_size = 8
+learning_rate = 0.001
+initial_epsilon = 1
+epsilon_decay = 0.999
+final_epsilon = 0.01
+num_filters_first_layer = 8
+discount_factor = 0.99
+episodes = 5000
+max_steps = 32
+target_update_freq = 500
+goal_reward = 10
+num_special_regions = 1
+special_region_rewards = [-1.0]
+experience_capacity = 8000
+batch_size = 128
+visibility = 7
+
+
+Training Time: 24:00
+Notes: first try with special regions, using model from tm_22; still reached goal, but unecessarily went through several low-reward areas

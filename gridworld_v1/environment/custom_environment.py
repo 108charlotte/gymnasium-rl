@@ -233,23 +233,23 @@ class GridWorldBase(gym.Env):
 
         for i, region in enumerate(self._special_regions): 
             for coords in region: 
-                grid[coords[0]][coords[1]] = i + 4 # don't want to overlap w/ teacher 1 and student 2 and target 3
+                grid[coords[0]][coords[1]] = f"{i} "
 
         # these override region visibilities
         # make sure student doesn't override teacher
         if not np.array_equal(self._teacher_agent_location, self._student_agent_location): 
-            grid[self._teacher_agent_location[0]][self._teacher_agent_location[1]] = "T"
-            grid[self._student_agent_location[0]][self._student_agent_location[1]] = "S"
+            grid[self._teacher_agent_location[0]][self._teacher_agent_location[1]] =  "🟦 " # updated to emoji so more visible in bigger gridworlds
+            grid[self._student_agent_location[0]][self._student_agent_location[1]] = "🟨 " # same as above
         else: 
-            grid[self._teacher_agent_location[0]][self._teacher_agent_location[1]] = "TS"
+            grid[self._teacher_agent_location[0]][self._teacher_agent_location[1]] = "🟫 " # same as above
         
         # show when goal reached
         if np.array_equal(self._teacher_agent_location, self._target_location): 
-            grid[self._target_location[0]][self._target_location[1]] = "T🎉"
+            grid[self._target_location[0]][self._target_location[1]] = "🟦🎉"
         elif np.array_equal(self._student_agent_location, self._target_location): 
-            grid[self._target_location[0]][self._target_location[1]] = "S🎉"
+            grid[self._target_location[0]][self._target_location[1]] = "🟨🎉"
         else: 
-            grid[self._target_location[0]][self._target_location[1]] = "G"
+            grid[self._target_location[0]][self._target_location[1]] = "🟩 "
 
         for row in grid:
             print(row)
