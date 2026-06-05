@@ -1,0 +1,25 @@
+grid_size = 16
+learning_rate = 0.005
+initial_epsilon = 1
+epsilon_decay = 0.998
+final_epsilon = 0.05
+discount_factor = 0.99
+episodes = 8000
+max_steps = 64
+target_update_freq = 200
+visibility = 7
+goal_reward = 10
+num_special_regions = 1
+special_region_rewards = [-2.0]
+experience_capacity = 8000
+batch_size = 64
+grid_sizes = [4, 8, 12, 16]
+num_filters_first_layer = 8
+final_conv_filters = 16
+target_spatial_size = 3
+step_penalty = -0.1
+seq_len = 8
+
+
+Training Time: 2:26:41
+Notes: tried to run overnight (acc ended up having to run a little in morning bc shutoff) after fixing some things and changing hyperparams, but still same result

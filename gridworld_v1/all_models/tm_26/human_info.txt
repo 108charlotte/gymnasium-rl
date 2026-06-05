@@ -1,0 +1,25 @@
+grid_size = 8
+learning_rate = 0.001
+initial_epsilon = 1
+epsilon_decay = 0.995
+final_epsilon = 0.05
+discount_factor = 0.99
+episodes = 5000
+max_steps = 32
+target_update_freq = 400
+visibility = 7
+goal_reward = 10
+num_special_regions = 1
+special_region_rewards = [-2.0]
+experience_capacity = 4000
+batch_size = 64
+grid_sizes = [4, 8, 12, 16]
+num_filters_first_layer = 8
+final_conv_filters = 16
+target_spatial_size = 3
+step_penalty = -0.1
+seq_len = 3
+
+
+Training Time: 46:14
+Notes: rewards didn't go up at all during any point in training - this is my worst model since tm_17

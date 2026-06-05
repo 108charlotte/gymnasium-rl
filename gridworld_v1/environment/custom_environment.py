@@ -96,7 +96,7 @@ class GridWorldBase(gym.Env):
         # unless overridden later by special area rules for teacher, small penalties for all areas except for goal to encourage going to goal
         rewards = {"teacher": self.calc_base_reward(hit_wall, terminations["teacher"]), "student": self.calc_base_reward(hit_wall, terminations["student"])}
         full_observations = self.get_full_world_state()
-        # check for truncation and terminations
+        # placeholder to not crash
         infos = {"teacher": {}, "student": {}}
 
         return full_observations, rewards, terminations, truncated, infos
@@ -119,6 +119,7 @@ class GridWorldBase(gym.Env):
         x_y_visibility_range = [agent_location[0] - visibility_range, agent_location[0] + visibility_range], [agent_location[1] - visibility_range, agent_location[1] + visibility_range]
         return x_y_visibility_range[0][0] <= coords[0] < x_y_visibility_range[0][1] and x_y_visibility_range[1][0] <= coords[1] < x_y_visibility_range[1][1]
 
+    # sped up for quality of life improvement
     def get_regions_in_visibility(self, agent, visibility_range = None): 
         if visibility_range is None: 
             visibility_range = self.size # full world, no limited visibility
@@ -127,8 +128,13 @@ class GridWorldBase(gym.Env):
             agent_location = self._teacher_agent_location
         visible = []
         for region in self._special_regions: 
-            to_append = [coords for coords in region if self.is_in_visibility_region(agent_location, coords, visibility_range)]
-            visible.append(to_append)
+            if len(region) == 0: # so program doesn't crash doing math on an empty array 
+                visible.append(np.array([]))
+                continue
+            all_region_coords = np.array(region)
+            dists = np.abs(all_region_coords - agent_location)
+            in_visibility = np.all(dists <= visibility_range, axis=1) # axis=1 checks on ?
+            visible.append(all_region_coords[in_visibility])
         
         return visible
     
@@ -184,7 +190,7 @@ class GridWorldBase(gym.Env):
     def make_one_agent_grid_relative(self, agent, visibility): 
         # scale down to fixed size based on visibility
         channels = []
-        agent_grid = self.make_empty_grid(2*visibility + 1) # visibility on both sides + agent cell
+        agent_grid = np.zeros((2*visibility + 1, 2*visibility + 1), dtype=np.float32) # visibility on both sides + agent cell
         agent_grid[visibility, visibility] = 1 # agent-centric
 
         agent_coords = self._teacher_agent_location

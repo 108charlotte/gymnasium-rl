@@ -1,0 +1,24 @@
+grid_size = 12
+learning_rate = 0.001
+initial_epsilon = 1
+epsilon_decay = 0.999
+final_epsilon = 0.01
+discount_factor = 0.99
+episodes = 5000
+max_steps = 48
+target_update_freq = 500
+visibility = 7
+goal_reward = 10
+num_special_regions = 1
+special_region_rewards = [-2.0]
+experience_capacity = 8000
+batch_size = 128
+grid_sizes = [4, 8, 12, 16]
+num_filters_first_layer = 8
+final_conv_filters = 16
+target_spatial_size = 3
+step_penalty = -0.1
+
+
+Training Time: 38:25
+Notes: increased step penalty from -0.01 to -0.1 to more strongly encourage finding efficient paths, and it did learn to get there a little bit; test results show that the model is still having looping patterns, so next I'm implementing a DQRN so I can compare performance when the agent has some memory
