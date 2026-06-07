@@ -188,7 +188,7 @@ class GridWorldBase(gym.Env):
         # grid = [[0 for row in range(self.size)] for col in range(self.size)]
         return grid
     
-    def render(self): 
+    def render(self, output_file=None): 
         # build grid 2d list
         grid = [["  " for row in range(self.size)] for col in range(self.size)] # empty but correct size
 
@@ -213,8 +213,8 @@ class GridWorldBase(gym.Env):
             grid[self._target_location[0]][self._target_location[1]] = "🟩 "
 
         for row in grid:
-            print(row)
-        print('') # To add some space between renders for each step
+            print(row) if output_file is None else print(row, file = output_file)
+        print('') if output_file is None else print('', file=output_file) # To add some space between renders for each step
 
 
 

@@ -117,7 +117,9 @@ class TeacherAgent:
         # I want to get all q values for an action, so I'm unsqueezing actions at col 1
         current_q_values = self.model(states).gather(1, actions.unsqueeze(1)).squeeze(1) # passes hidden = None
         with torch.no_grad():
-            next_q_values = self.target_model(next_states).max(dim=1).values # the maximum that could happen, assuming the agent takes the best action
+            next_actions = self.model(next_states).argmax(dim=1) # the maximum that could happen, assuming the agent takes the best action
+
+            next_q_values = (self.target_model(next_states).gather(1, next_actions.unsqueeze(1)).squeeze(1)) # double dqn: predict q values w/ target network
         target_q_values = rewards + self.discount_factor * next_q_values * (1 - dones)
         
         loss = self.loss_fn(current_q_values, target_q_values)

@@ -1,0 +1,87 @@
+
+Same size tests:
+
+Test 1:
+
+Step 0 | Action: 0 | Reward: -5.0
+Step 1 | Action: 1 | Reward: -0.1
+Step 2 | Action: 0 | Reward: -0.1
+Step 3 | Action: 0 | Reward: -0.1
+Step 4 | Action: 1 | Reward: -0.1
+Step 5 | Action: 1 | Reward: 10
+Reached goal after 6 steps | Total reward: 4.600000000000001
+Went through special region
+
+Test 2:
+
+Step 0 | Action: 1 | Reward: -0.1
+Step 1 | Action: 2 | Reward: -0.1
+Step 2 | Action: 2 | Reward: -5.0
+Reached goal after 3 steps | Total reward: -5.2
+Went through special region
+
+Test 3:
+
+Step 0 | Action: 2 | Reward: -0.1
+Step 1 | Action: 1 | Reward: -0.1
+Step 2 | Action: 1 | Reward: -0.1
+Step 3 | Action: 1 | Reward: -5.0
+Step 4 | Action: 0 | Reward: 10
+Reached goal after 5 steps | Total reward: 4.7
+Went through special region
+
+2x size tests:
+
+Test 1:
+
+Step 0 | Action: 1 | Reward: -0.1
+Step 1 | Action: 1 | Reward: -0.1
+Step 2 | Action: 2 | Reward: -0.1
+Step 3 | Action: 2 | Reward: -0.1
+Step 4 | Action: 3 | Reward: -0.1
+Step 5 | Action: 3 | Reward: -0.1
+Step 6 | Action: 2 | Reward: -5.0
+Step 7 | Action: 2 | Reward: -0.1
+Step 8 | Action: 3 | Reward: -0.1
+Step 9 | Action: 2 | Reward: -0.1
+Step 10 | Action: 2 | Reward: 10
+Reached goal after 11 steps | Total reward: 4.100000000000001
+Went through special region
+
+Test 2:
+
+Step 0 | Action: 2 | Reward: -0.1
+Step 1 | Action: 1 | Reward: -0.1
+Step 2 | Action: 3 | Reward: -0.1
+Step 3 | Action: 1 | Reward: -0.1
+Step 4 | Action: 3 | Reward: -0.1
+Step 5 | Action: 1 | Reward: -0.1
+Step 6 | Action: 3 | Reward: -0.1
+Step 7 | Action: 1 | Reward: -0.1
+Step 8 | Action: 3 | Reward: -0.1
+Step 9 | Action: 1 | Reward: -0.1
+Step 10 | Action: 3 | Reward: -0.1
+Step 11 | Action: 1 | Reward: -0.1
+Step 12 | Action: 3 | Reward: -0.1
+Step 13 | Action: 1 | Reward: -0.1
+Step 14 | Action: 3 | Reward: -0.1
+Step 15 | Action: 1 | Reward: -0.1
+Step 16 | Action: 3 | Reward: -0.1
+Step 17 | Action: 1 | Reward: -0.1
+Step 18 | Action: 3 | Reward: -0.1
+Step 19 | Action: 1 | Reward: -0.1
+Truncated after 20 steps | Total reward: -2.0000000000000004
+
+Test 3:
+
+Step 0 | Action: 1 | Reward: -0.1
+Step 1 | Action: 0 | Reward: -0.1
+Step 2 | Action: 0 | Reward: -0.1
+Step 3 | Action: 0 | Reward: -5.0
+Step 4 | Action: 0 | Reward: -0.1
+Step 5 | Action: 0 | Reward: -5.0
+Step 6 | Action: 0 | Reward: -0.1
+Step 7 | Action: 0 | Reward: -0.1
+Step 8 | Action: 0 | Reward: 10
+Reached goal after 9 steps | Total reward: -0.5999999999999979
+Went through special region
