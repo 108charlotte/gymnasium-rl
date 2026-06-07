@@ -1,0 +1,25 @@
+grid_size = 9
+learning_rate = 0.001
+initial_epsilon = 1
+epsilon_decay = 0.9995
+final_epsilon = 0.05
+discount_factor = 0.99
+episodes = 15000
+max_steps = 36
+target_update_freq = 500
+visibility = 4
+goal_reward = 10
+num_special_regions = 1
+special_region_rewards = [-5.0]
+experience_capacity = 8000
+batch_size = 64
+grid_sizes = [5, 9]
+num_filters_first_layer = 16
+final_conv_filters = 32
+target_spatial_size = 3
+step_penalty = -0.1
+episode_markers_for_phase_switch = []
+
+
+Training Time: 17:11
+Notes: gets to the goal a lot of the time! I've noticed this weird thing where it will get right next to the goal and just linger around it (that's where it starts looping) which hints that its relying too heavily on just distance (although it does avoid bad regions)

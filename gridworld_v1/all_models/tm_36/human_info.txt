@@ -1,0 +1,25 @@
+grid_size = 9
+learning_rate = 0.005
+initial_epsilon = 1
+epsilon_decay = 0.9995
+final_epsilon = 0.05
+discount_factor = 0.99
+episodes = 6000
+max_steps = 36
+target_update_freq = 1000
+visibility = 4
+goal_reward = 10
+num_special_regions = 1
+special_region_rewards = [-5.0]
+experience_capacity = 8000
+batch_size = 64
+grid_sizes = [5, 9]
+num_filters_first_layer = 16
+final_conv_filters = 32
+target_spatial_size = 3
+step_penalty = -0.1
+seq_len = 8
+
+
+Training Time: 10:20
+Notes: weighted transition from 5x5 to 9x9 so that more 5x5s at the beginning of 9x9, but no change

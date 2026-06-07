@@ -1,0 +1,25 @@
+grid_size = 12
+learning_rate = 0.005
+initial_epsilon = 1
+epsilon_decay = 0.998
+final_epsilon = 0.05
+discount_factor = 0.99
+episodes = 8000
+max_steps = 48
+target_update_freq = 200
+visibility = 4
+goal_reward = 10
+num_special_regions = 1
+special_region_rewards = [-2.0]
+experience_capacity = 8000
+batch_size = 64
+grid_sizes = [5, 9, 12, 15]
+num_filters_first_layer = 16
+final_conv_filters = 32
+target_spatial_size = 3
+step_penalty = -0.1
+seq_len = 8
+
+
+Training Time: 3:19:33
+Notes: attempted to use curriculum learning; failed spectaculary

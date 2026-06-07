@@ -133,61 +133,13 @@ class GridWorldBase(gym.Env):
                 continue
             all_region_coords = np.array(region)
             dists = np.abs(all_region_coords - agent_location)
-            in_visibility = np.all(dists <= visibility_range, axis=1) # axis=1 checks on ?
+            in_visibility = np.all(dists <= visibility_range, axis=1) # axis=1 checks row-wise, I'm not sure why it wouldn't be axis=0 but this appears to work and that didn't work so I'm using this
             visible.append(all_region_coords[in_visibility])
         
         return visible
     
-    def make_grid(self): 
-        channels = []
-        teacher_grid = self.make_empty_grid()
-        teacher_grid[self._teacher_agent_location[0], self._teacher_agent_location[1]] = 1
-
-        student_grid = self.make_empty_grid()
-        student_grid[self._student_agent_location[0], self._student_agent_location[1]] = 1
-
-        target_grid = self.make_empty_grid()
-        target_grid[self._target_location[0], self._target_location[1]] = 1
-
-        channels.append(teacher_grid)
-        channels.append(student_grid)
-        channels.append(target_grid)
-
-        for i, region in enumerate(self._special_regions): 
-            region_grid = self.make_empty_grid()
-            for coords in region: 
-                region_grid[coords[0], coords[1]] = 1
-            channels.append(region_grid) # in ordering of labels (0 first, then 1, then 2, etc.)
-        
-        return np.array(channels)
-    
     # don't want to pollute with location of other agent, in format for CNN to take in (different channel for agent, target, and each region)
-    def make_one_agent_grid(self, agent): 
-        # scale down to fixed size based on visibility
-        channels = []
-
-        agent_grid = self.make_empty_grid()
-        if agent == "teacher": 
-            agent_grid[self._teacher_agent_location[0], self._teacher_agent_location[1]] = 1
-        else: 
-            agent_grid[self._student_agent_location[0], self._student_agent_location[1]] = 1
-        channels.append(agent_grid)
-
-        target_grid = self.make_empty_grid()
-        target_grid[self._target_location[0], self._target_location[1]] = 1
-
-        channels.append(target_grid)
-
-        for i, region in enumerate(self._special_regions): 
-            region_grid = self.make_empty_grid()
-            for coords in region: 
-                region_grid[coords[0], coords[1]] = 1
-            channels.append(region_grid) # in ordering of labels (0 first, then 1, then 2, etc.)
-        
-        return np.array(channels)
-    
-    # don't want to pollute with location of other agent, in format for CNN to take in (different channel for agent, target, and each region)
-    def make_one_agent_grid_relative(self, agent, visibility): 
+    def make_one_agent_grid_relative(self, agent, visibility, extra_empty_layers=0): # extra empty layers is for adding empty layers onto an output in situations like curriculum learning where I want to introduce new regions later, but the agent needs to take in a certain number of layers as input so I need to pad earlier inputs with an extra layer
         # scale down to fixed size based on visibility
         channels = []
         agent_grid = np.zeros((2*visibility + 1, 2*visibility + 1), dtype=np.float32) # visibility on both sides + agent cell
@@ -216,12 +168,15 @@ class GridWorldBase(gym.Env):
         # what if target isn't currently visible? the relative location compared to the agent of target will be part of the observation given to the CNN (delta values)
         # this makes logical sense in the example of a human driver navigating to a location, since they have access to google maps and know the distance to that location
         # or a person or animal who knows the general direction they have to go to get to a location even if they don't know the exact location itself
-        dist_to_target_row = (self._target_location[0] - agent_coords[0]) / self.size # normalizing by size to get something between -1 and 1 (like values in other channels of the CNN)
-        dist_to_target_col = (self._target_location[1] - agent_coords[1]) / self.size
+        dist_to_target_row = (self._target_location[0] - agent_coords[0]) / visibility # normalizing by visibility so model can generalize to different sizes easier (normalizing by size = confusing bc values scaled differently)
+        dist_to_target_col = (self._target_location[1] - agent_coords[1]) / visibility
         delta_row_grid = np.full((2*visibility + 1, 2*visibility + 1), dist_to_target_row, dtype=np.float32)
         delta_col_grid = np.full((2*visibility + 1, 2*visibility + 1), dist_to_target_col, dtype=np.float32)
         channels.append(delta_row_grid)
         channels.append(delta_col_grid)
+
+        for _ in range(extra_empty_layers): 
+            channels.append(self.make_empty_grid(2*visibility + 1))
 
         return np.array(channels)
 
