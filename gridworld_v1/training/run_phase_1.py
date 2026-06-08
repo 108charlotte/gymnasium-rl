@@ -32,6 +32,8 @@ changes = None # will be overriden by papermill if running headlessly, and if no
 
 # end copy from phase_1.ipynb
 
+# potential TODO: get rid of all walls (still restrict where target and agents can spawn by grid size tho)
+
 # update this! 
 experiments = [
     {
@@ -77,7 +79,7 @@ for run_id, experiment in enumerate(experiments, start=1):
 
     pm.execute_notebook(
         'phase_1.ipynb', 
-        'phase_1_output.ipynb', 
+        'phase_1_output.ipynb', # don't super care about this so fine with it being overriden each run
         parameters=inputs, # will configure this in .ipynb later
         log_output=False
     )

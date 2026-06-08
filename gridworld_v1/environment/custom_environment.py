@@ -1,24 +1,18 @@
 import numpy as np
 import gymnasium as gym
-from copy import copy
-import functools
 
 class GridWorldBase(gym.Env): 
-    def __init__(self, size:int = 10, num_types_special_regions: int = 0, goal_reward: int = 10, step_penalty: float = -0.1, wall_penalty = None): 
-        self.size = size
+    def __init__(self, num_types_special_regions: int = 0, goal_reward: int = 10, step_penalty: float = -0.1, spawn_width:int = 10): 
         self._num_types_special_regions = num_types_special_regions
         self.goal_reward = goal_reward
         self.step_penalty = step_penalty
-        self.wall_penalty = wall_penalty if wall_penalty is not None else step_penalty # treat stepping into wall like anything else
+        self.curr_world_width = spawn_width # default, will be re-set once visibility is known
+        self.spawn_width = spawn_width
 
         self.coords_to_default() # set coordinates to - values to show that they are uninitialized
 
         self.action_space = gym.spaces.Discrete(4)
-        self.observation_space = gym.spaces.Dict({ # leaving special_regions out of this, will be dealt with in wrappers seperately
-            "teacher_agent": gym.spaces.Box(0, size-1, shape=(2,), dtype=np.int32), 
-            "student_agent": gym.spaces.Box(0, size-1, shape=(2,), dtype=np.int32), 
-            "target": gym.spaces.Box(0, size-1, shape=(2,), dtype=np.int32)
-        })
+        # observation space defined in wrapper, where visibility known
         self._action_to_direction = {
             0: np.array([0, 1]), # right (col + 1)
             1: np.array([-1, 0]), # up (row - 1)
@@ -45,56 +39,41 @@ class GridWorldBase(gym.Env):
         obs["special_regions"] = self._special_regions.copy()
         return obs
 
-    def reset(self, seed=None, options=None) -> tuple[dict, dict]:
+    def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         # randomly sets teacher, sets student to same start location as teacher
-        self._teacher_agent_location = self.np_random.integers(0, self.size, size=2, dtype=int)
+        self._teacher_agent_location = self.np_random.integers(0, self.spawn_width, size=2, dtype=int)
         self._student_agent_location = self._teacher_agent_location.copy()
 
         self._target_location = self._teacher_agent_location.copy()
         while np.array_equal(self._target_location, self._teacher_agent_location):
-            self._target_location = self.np_random.integers(0, self.size, size=2, dtype=int)
+            self._target_location = self.np_random.integers(0, self.spawn_width, size=2, dtype=int)
 
         special_regions_index_order = self.np_random.permutation(self._num_types_special_regions)
         for index in special_regions_index_order:
-            num_to_place = self.np_random.integers(low=0, high=(self.size ** 2) // 2)
+            num_to_place = self.np_random.integers(low=0, high=(self.spawn_width ** 2) // 2)
             self._special_regions[index] = [
-                tuple(self.np_random.integers(0, self.size, size=2, dtype=int))
+                tuple(self.np_random.integers(0, self.spawn_width, size=2, dtype=int))
                 for _ in range(num_to_place)
             ]
         
         return self._get_obs(), {} # empty info
 
-    def calc_base_reward(self, hit_wall, at_goal): # base reward here means reward from BaseGridEnv, since it may be overriden by the teacher wrapper for special regions
-        if at_goal: 
-            return self.goal_reward
-        elif hit_wall: 
-            return self.wall_penalty
-        return self.step_penalty
-
-    def get_new_loc_and_if_hit_wall(self, direction, original_location): 
-        new_location = original_location + direction
-        if new_location[0] < 0 or new_location[0] > self.size-1 or new_location[1] < 0 or new_location[1] > self.size-1: 
-            return (original_location, True) # true for hit wall
-        return (new_location, False) # didn't hit wall (new location w/ in size bounds)
+    def get_new_loc(self, direction, original_location): # there's a function for this because it used to be more complicated before I removed wall restrictions on where the agent could go (grid size), and I'm keeping the function to make it easier to re-introduce any extra logic I need for steps
+        return original_location + direction
     
     def step_one_agent(self, action, agent:str = "teacher"): 
         direction = self._action_to_direction[action]
-        hit_wall = False # will penalize in rewards
-
+        # can't use func I wrote to get loc bc I need to update too
         if agent == "teacher": 
-            loc_and_hit_wall = self.get_new_loc_and_if_hit_wall(direction, self._teacher_agent_location)
-            self._teacher_agent_location = loc_and_hit_wall[0]
-            hit_wall = loc_and_hit_wall[1]
+            self._teacher_agent_location += direction
         else: 
-            loc_and_hit_wall = self.get_new_loc_and_if_hit_wall(direction, self._student_agent_location)
-            self._student_agent_location = loc_and_hit_wall[0]
-            hit_wall = loc_and_hit_wall[1]
-        
+            self._student_agent_location += direction
+
         terminations = {"teacher": np.array_equal(self._teacher_agent_location, self._target_location), "student": np.array_equal(self._student_agent_location, self._target_location)}
         truncated = False # will be overridden in wrappers, since wrappers keep track of steps for each agent (not part of world environment)
         # unless overridden later by special area rules for teacher, small penalties for all areas except for goal to encourage going to goal
-        rewards = {"teacher": self.calc_base_reward(hit_wall, terminations["teacher"]), "student": self.calc_base_reward(hit_wall, terminations["student"])}
+        rewards = {"teacher": self.goal_reward if np.array_equal(self._teacher_agent_location, self._target_location) else self.step_penalty, "student": self.goal_reward if np.array_equal(self._student_agent_location, self._target_location) else self.step_penalty}
         full_observations = self.get_full_world_state()
         # placeholder to not crash
         infos = {"teacher": {}, "student": {}}
@@ -110,7 +89,6 @@ class GridWorldBase(gym.Env):
             for coords in region: 
                 if coords[0] == agent_location[0] and coords[1] == agent_location[1]: 
                     return i # regions identified by where they appear in the list
-        
         return None
     
     def is_in_visibility_region(self, agent_location, coords, visibility_range = None): 
@@ -118,14 +96,47 @@ class GridWorldBase(gym.Env):
             return True
         x_y_visibility_range = [agent_location[0] - visibility_range, agent_location[0] + visibility_range], [agent_location[1] - visibility_range, agent_location[1] + visibility_range]
         return x_y_visibility_range[0][0] <= coords[0] < x_y_visibility_range[0][1] and x_y_visibility_range[1][0] <= coords[1] < x_y_visibility_range[1][1]
+    
+    def update_world_width(self, agent_loc, visibility_range): 
+        max_extent = max(agent_loc[0] + visibility_range, agent_loc[1] + visibility_range)
+        if max_extent > self.curr_world_width: # if visibility can see outside curr world width, need to update
+            orig_width = self.curr_world_width
+            self.curr_world_width = max_extent
+            self.generate_necessary_special_regions(agent_loc, visibility_range, orig_width)
+    
+    def get_visible_grid_coords(self, agent_loc, visibility): 
+        # used claude to create faster code using np.meshgrid
+        rows = np.arange(agent_loc[0] - visibility, agent_loc[0] + visibility + 1)
+        cols = np.arange(agent_loc[1] - visibility, agent_loc[1] + visibility + 1)
+        
+        rr, cc = np.meshgrid(rows, cols, indexing='ij')
+        return np.stack([rr.ravel(), cc.ravel()], axis=1)
+    
+    def generate_necessary_special_regions(self, agent_loc, visibility, orig_width): 
+        agent_visible_coords = self.get_visible_grid_coords(agent_loc, visibility)
+        need_populating = np.array([
+            coord for coord in agent_visible_coords
+            if coord[0] < 0 or coord[0] >= orig_width
+            or coord[1] < 0 or coord[1] >= orig_width
+        ])
+        if len(need_populating) == 0: return # so that //2 doesn't crash
+        special_regions_index_order = self.np_random.permutation(self._num_types_special_regions)
+        for index in special_regions_index_order:
+            num_to_place = self.np_random.integers(low=0, high=len(need_populating) // 2)
+            selected_coords = need_populating[self.np_random.choice(len(need_populating), size=num_to_place, replace=False)]
+            self._special_regions[index].extend(map(tuple, selected_coords)) # coords need to be tuples, not np arrays
+
+    def get_agent_loc_for_name(self, name): 
+        agent_location = self._student_agent_location
+        if name == "teacher": 
+            agent_location = self._teacher_agent_location
+        return agent_location
 
     # sped up for quality of life improvement
-    def get_regions_in_visibility(self, agent, visibility_range = None): 
-        if visibility_range is None: 
-            visibility_range = self.size # full world, no limited visibility
-        agent_location = self._student_agent_location
-        if agent == "teacher": 
-            agent_location = self._teacher_agent_location
+    def get_regions_in_visibility(self, agent, visibility_range): 
+        agent_location = self.get_agent_loc_for_name(agent)
+        self.update_world_width(agent_location, visibility_range) # make sure up-to-date before checking special regions
+        
         visible = []
         for region in self._special_regions: 
             if len(region) == 0: # so program doesn't crash doing math on an empty array 
@@ -135,7 +146,6 @@ class GridWorldBase(gym.Env):
             dists = np.abs(all_region_coords - agent_location)
             in_visibility = np.all(dists <= visibility_range, axis=1) # axis=1 checks row-wise, I'm not sure why it wouldn't be axis=0 but this appears to work and that didn't work so I'm using this
             visible.append(all_region_coords[in_visibility])
-        
         return visible
     
     # don't want to pollute with location of other agent, in format for CNN to take in (different channel for agent, target, and each region)
@@ -145,9 +155,7 @@ class GridWorldBase(gym.Env):
         agent_grid = np.zeros((2*visibility + 1, 2*visibility + 1), dtype=np.float32) # visibility on both sides + agent cell
         agent_grid[visibility, visibility] = 1 # agent-centric
 
-        agent_coords = self._teacher_agent_location
-        if agent == "student": 
-            agent_coords = self._student_agent_location
+        agent_coords = self.get_agent_loc_for_name(agent)
 
         channels.append(agent_grid)
         special_regions = self.get_regions_in_visibility(agent, visibility)
@@ -181,36 +189,37 @@ class GridWorldBase(gym.Env):
         return np.array(channels)
 
     
-    def make_empty_grid(self, size = None): 
-        if size is None: 
-            size = self.size
+    def make_empty_grid(self, size): # this isn't worth a function really, it used to have a check for None to set to full grid but now there isn't really a full grid
         grid = np.zeros((size, size), dtype=np.float32)
         # grid = [[0 for row in range(self.size)] for col in range(self.size)]
         return grid
     
     def render(self, output_file=None): 
+        all_coords = np.array([self._teacher_agent_location, self._student_agent_location, self._target_location] + [np.array(col) for row in self._special_regions for col in row])
+        row_min,col_min = all_coords.min(axis=0)
+        row_max,col_max = all_coords.max(axis=0)
         # build grid 2d list
-        grid = [["  " for row in range(self.size)] for col in range(self.size)] # empty but correct size
+        grid = [["  " for row in range(col_max - col_min + 1)] for col in range(row_max - row_min + 1)] # empty but correct size
 
         for i, region in enumerate(self._special_regions): 
             for coords in region: 
-                grid[coords[0]][coords[1]] = f"{i} "
+                grid[coords[0]-row_min][coords[1]-col_min] = f"{i} "
 
         # these override region visibilities
         # make sure student doesn't override teacher
         if not np.array_equal(self._teacher_agent_location, self._student_agent_location): 
-            grid[self._teacher_agent_location[0]][self._teacher_agent_location[1]] =  "🟦 " # updated to emoji so more visible in bigger gridworlds
-            grid[self._student_agent_location[0]][self._student_agent_location[1]] = "🟨 " # same as above
+            grid[self._teacher_agent_location[0]-row_min][self._teacher_agent_location[1]-col_min] =  "🟦 " # updated to emoji so more visible in bigger gridworlds
+            grid[self._student_agent_location[0]-row_min][self._student_agent_location[1]-col_min] = "🟨 " # same as above
         else: 
-            grid[self._teacher_agent_location[0]][self._teacher_agent_location[1]] = "🟫 " # same as above
+            grid[self._teacher_agent_location[0]-row_min][self._teacher_agent_location[1]-col_min] = "🟫 " # same as above
         
         # show when goal reached
         if np.array_equal(self._teacher_agent_location, self._target_location): 
-            grid[self._target_location[0]][self._target_location[1]] = "🟦🎉"
+            grid[self._target_location[0]-row_min][self._target_location[1]-col_min] = "🟦🎉"
         elif np.array_equal(self._student_agent_location, self._target_location): 
-            grid[self._target_location[0]][self._target_location[1]] = "🟨🎉"
+            grid[self._target_location[0]-row_min][self._target_location[1]-col_min] = "🟨🎉"
         else: 
-            grid[self._target_location[0]][self._target_location[1]] = "🟩 "
+            grid[self._target_location[0]-row_min][self._target_location[1]-col_min] = "🟩 "
 
         for row in grid:
             print(row) if output_file is None else print(row, file = output_file)
@@ -223,6 +232,9 @@ class TeacherWrapper(gym.Wrapper):
         super().__init__(env)
         self.env = env
         self.visibility = visibility
+        num_channels = 1+env._num_types_special_regions+1+2 # agent + one per region type + target + delta row + delta col
+        grid_size = 2*visibility + 1
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(num_channels, grid_size, grid_size), dtype=np.float32)
         
         self.max_steps = max_steps if max_steps is not None else float('inf') # if none, then no max
         self.num_steps = 0 # init value
@@ -242,12 +254,7 @@ class TeacherWrapper(gym.Wrapper):
         terminated = terminations["teacher"]
         truncated = self.max_steps <= self.num_steps
 
-        # restrict obs to limited visibility area, and don't need to know location of student
-        obs = {
-            "teacher_agent": full_obs["teacher_agent"], # doesn't need to know location of student agent
-            "target": full_obs["target"], 
-            "special_regions": self.env.get_regions_in_visibility("teacher", self.visibility),
-        }
+        obs = self.env.make_one_agent_grid_relative("teacher", self.visibility)
 
         # update reward based on special_region_rewards values
         curr_region = self.env.get_curr_special_region("teacher")
@@ -265,10 +272,6 @@ class TeacherWrapper(gym.Wrapper):
         self.path = [self.env._teacher_agent_location.copy()]
         self.num_steps = 0
         
-        teacher_obs = {
-            "teacher_agent": base_obs["teacher_agent"],
-            "target": base_obs["target"],
-            "special_regions": self.env.get_regions_in_visibility("teacher", self.visibility),
-        }
+        teacher_obs = self.env.make_one_agent_grid_relative("teacher", self.visibility)
         
         return teacher_obs, info
