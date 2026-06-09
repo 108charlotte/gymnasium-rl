@@ -1,13 +1,18 @@
 import numpy as np
 import gymnasium as gym
+import math
+import pandas as pd
 
 class GridWorldBase(gym.Env): 
-    def __init__(self, num_types_special_regions: int = 0, goal_reward: int = 10, step_penalty: float = -0.1, spawn_width:int = 10): 
+    def __init__(self, num_types_special_regions: int = 0, goal_reward: int = 10, step_penalty: float = -0.1, spawn_width:int = 10, num_directions:int = 16, reward_shaping=False): 
         self._num_types_special_regions = num_types_special_regions
         self.goal_reward = goal_reward
         self.step_penalty = step_penalty
-        self.curr_world_width = spawn_width # default, will be re-set once visibility is known
         self.spawn_width = spawn_width
+        self.num_directions = num_directions
+        self.reward_shaping = reward_shaping
+
+        self.curr_world_bounds = np.array([(0,0),(spawn_width,spawn_width)]) # (smallest x, smallest y), (greatest x, greatest y)
 
         self.coords_to_default() # set coordinates to - values to show that they are uninitialized
 
@@ -59,21 +64,46 @@ class GridWorldBase(gym.Env):
         
         return self._get_obs(), {} # empty info
 
-    def get_new_loc(self, direction, original_location): # there's a function for this because it used to be more complicated before I removed wall restrictions on where the agent could go (grid size), and I'm keeping the function to make it easier to re-introduce any extra logic I need for steps
-        return original_location + direction
+    def get_reward_no_shaping(self): 
+        return {"teacher": self.goal_reward if np.array_equal(self._teacher_agent_location, self._target_location) else self.step_penalty, "student": self.goal_reward if np.array_equal(self._student_agent_location, self._target_location) else self.step_penalty}
     
+    def get_reward_with_shaping(self, old_loc, agent_loc): # uses bucketed angles
+        move_angle = self.get_bucketed_angle(self.get_angle_for_coords(old_loc, agent_loc))
+        target_angle = self.get_bucketed_angle(self.get_angle_for_coords(self._target_location, old_loc))
+        angle_diff = abs(move_angle - target_angle)
+        angle_diff = min(angle_diff, 2*math.pi - angle_diff) # converts to positive (0 to 2pi scale)
+        dir_reward = 0.05 * math.cos(angle_diff) # current formula from claude, may change later
+        return {"teacher": self.goal_reward + dir_reward if np.array_equal(self._teacher_agent_location, self._target_location) else self.step_penalty + dir_reward, "student": self.goal_reward + dir_reward if np.array_equal(self._student_agent_location, self._target_location) else self.step_penalty + dir_reward}
+
+    def get_angle_for_dx_dy(self, dx, dy): # returns on scale of [0, 2pi]
+        return (math.atan2(-dx, dy) + 2*math.pi) % (2*math.pi)
+    
+    def get_bucketed_angle(self, angle): 
+        angle_bin = int(angle / (2*math.pi) * self.num_directions) % self.num_directions
+        return angle_bin
+
+    def get_angle_for_coords(self, coord1, coord2): 
+        dx = coord1[0] - coord2[0]
+        dy = coord1[1] - coord2[1]
+        return self.get_angle_for_dx_dy(dx, dy)
+
     def step_one_agent(self, action, agent:str = "teacher"): 
         direction = self._action_to_direction[action]
         # can't use func I wrote to get loc bc I need to update too
         if agent == "teacher": 
+            old_loc = self._teacher_agent_location.copy()
             self._teacher_agent_location += direction
+            agent_loc = self._teacher_agent_location
         else: 
+            old_loc = self._student_agent_location.copy()
             self._student_agent_location += direction
+            agent_loc = self._student_agent_location
+
 
         terminations = {"teacher": np.array_equal(self._teacher_agent_location, self._target_location), "student": np.array_equal(self._student_agent_location, self._target_location)}
         truncated = False # will be overridden in wrappers, since wrappers keep track of steps for each agent (not part of world environment)
         # unless overridden later by special area rules for teacher, small penalties for all areas except for goal to encourage going to goal
-        rewards = {"teacher": self.goal_reward if np.array_equal(self._teacher_agent_location, self._target_location) else self.step_penalty, "student": self.goal_reward if np.array_equal(self._student_agent_location, self._target_location) else self.step_penalty}
+        rewards = self.get_reward_with_shaping(old_loc, agent_loc) if self.reward_shaping else self.get_reward_no_shaping()
         full_observations = self.get_full_world_state()
         # placeholder to not crash
         infos = {"teacher": {}, "student": {}}
@@ -97,33 +127,42 @@ class GridWorldBase(gym.Env):
         x_y_visibility_range = [agent_location[0] - visibility_range, agent_location[0] + visibility_range], [agent_location[1] - visibility_range, agent_location[1] + visibility_range]
         return x_y_visibility_range[0][0] <= coords[0] < x_y_visibility_range[0][1] and x_y_visibility_range[1][0] <= coords[1] < x_y_visibility_range[1][1]
     
-    def update_world_width(self, agent_loc, visibility_range): 
-        max_extent = max(agent_loc[0] + visibility_range, agent_loc[1] + visibility_range)
-        if max_extent > self.curr_world_width: # if visibility can see outside curr world width, need to update
-            orig_width = self.curr_world_width
-            self.curr_world_width = max_extent
-            self.generate_necessary_special_regions(agent_loc, visibility_range, orig_width)
+    def get_x_y_ranges_for_coords(self, coords1, coords2): 
+        xs = (min(coords1[0], coords2[0]), max(coords1[0], coords2[0]))
+        ys = (min(coords1[1], coords2[1]), max(coords1[1], coords2[1]))
+        return (xs, ys) # list of tuples
     
-    def get_visible_grid_coords(self, agent_loc, visibility): 
-        # used claude to create faster code using np.meshgrid
-        rows = np.arange(agent_loc[0] - visibility, agent_loc[0] + visibility + 1)
-        cols = np.arange(agent_loc[1] - visibility, agent_loc[1] + visibility + 1)
+    def update_world_dims(self, agent_loc, visibility_range): 
+        x_min = agent_loc[0] - visibility_range
+        x_max = agent_loc[0] + visibility_range
+        y_min = agent_loc[1] - visibility_range
+        y_max = agent_loc[1] + visibility_range
+        Y, X = np.mgrid[y_min:y_max + 1, x_min:x_max + 1]
+        agent_visible_regions = np.column_stack((X.ravel(), Y.ravel())) # flattened + stacked
+        outside_explored = ((agent_visible_regions[:, 0] < self.curr_world_bounds[0][0]) | # less than min x
+                             (agent_visible_regions[:, 0] > self.curr_world_bounds[1][0]) |  # greater than max x
+                             (agent_visible_regions[:, 1] < self.curr_world_bounds[0][0]) | # less than min y
+                             (agent_visible_regions[:, 1] > self.curr_world_bounds[1][1]))  # greater than max y
         
-        rr, cc = np.meshgrid(rows, cols, indexing='ij')
-        return np.stack([rr.ravel(), cc.ravel()], axis=1)
+        # not sure if those were the right coords
+        if outside_explored.any(): 
+            new_coords = agent_visible_regions[outside_explored]
+            for coord in new_coords: 
+                # set new min/max coords
+                if coord[0] < self.curr_world_bounds[0][0]: self.curr_world_bounds[0][0] = coord[0] # less than x min
+                if coord[0] > self.curr_world_bounds[1][0]: self.curr_world_bounds[1][0] = coord[0] # greater than x max
+                if coord[1] < self.curr_world_bounds[0][1]: self.curr_world_bounds[0][1] = coord[1] # less than y min
+                if coord[1] > self.curr_world_bounds[1][1]: self.curr_world_bounds[1][1] = coord[1] # greater than y max
+            
+            new_visible = agent_visible_regions[outside_explored]
+            if len(new_visible) > 0: self.generate_necessary_special_regions(new_visible)
     
-    def generate_necessary_special_regions(self, agent_loc, visibility, orig_width): 
-        agent_visible_coords = self.get_visible_grid_coords(agent_loc, visibility)
-        need_populating = np.array([
-            coord for coord in agent_visible_coords
-            if coord[0] < 0 or coord[0] >= orig_width
-            or coord[1] < 0 or coord[1] >= orig_width
-        ])
-        if len(need_populating) == 0: return # so that //2 doesn't crash
+    def generate_necessary_special_regions(self, coords): 
         special_regions_index_order = self.np_random.permutation(self._num_types_special_regions)
         for index in special_regions_index_order:
-            num_to_place = self.np_random.integers(low=0, high=len(need_populating) // 2)
-            selected_coords = need_populating[self.np_random.choice(len(need_populating), size=num_to_place, replace=False)]
+            num_to_place = self.np_random.integers(low=0, high=len(coords) // 2)
+            if num_to_place == 0: continue
+            selected_coords = coords[self.np_random.choice(len(coords), size=num_to_place, replace=False)]
             self._special_regions[index].extend(map(tuple, selected_coords)) # coords need to be tuples, not np arrays
 
     def get_agent_loc_for_name(self, name): 
@@ -135,7 +174,7 @@ class GridWorldBase(gym.Env):
     # sped up for quality of life improvement
     def get_regions_in_visibility(self, agent, visibility_range): 
         agent_location = self.get_agent_loc_for_name(agent)
-        self.update_world_width(agent_location, visibility_range) # make sure up-to-date before checking special regions
+        self.update_world_dims(agent_location, visibility_range) # make sure up-to-date before checking special regions
         
         visible = []
         for region in self._special_regions: 
@@ -173,21 +212,16 @@ class GridWorldBase(gym.Env):
             target_grid[self._target_location[0] - agent_coords[0] + visibility, self._target_location[1] - agent_coords[1] + visibility] = 1
         channels.append(target_grid)
 
-        # what if target isn't currently visible? the relative location compared to the agent of target will be part of the observation given to the CNN (delta values)
-        # this makes logical sense in the example of a human driver navigating to a location, since they have access to google maps and know the distance to that location
-        # or a person or animal who knows the general direction they have to go to get to a location even if they don't know the exact location itself
-        dist_to_target_row = (self._target_location[0] - agent_coords[0]) / visibility # normalizing by visibility so model can generalize to different sizes easier (normalizing by size = confusing bc values scaled differently)
-        dist_to_target_col = (self._target_location[1] - agent_coords[1]) / visibility
-        delta_row_grid = np.full((2*visibility + 1, 2*visibility + 1), dist_to_target_row, dtype=np.float32)
-        delta_col_grid = np.full((2*visibility + 1, 2*visibility + 1), dist_to_target_col, dtype=np.float32)
-        channels.append(delta_row_grid)
-        channels.append(delta_col_grid)
+        angle = self.get_angle_for_coords(self._target_location, agent_coords)
+        angle_bin = self.get_bucketed_angle(angle)
+        direction_channels = np.zeros((self.num_directions, 2*visibility + 1, 2*visibility + 1), dtype=np.float32)
+        direction_channels[angle_bin, 0, 0] = 1 # one-hot encoding so no synthetic hierarchy, only setting top left corner of channel bc that's all I read
+        channels.extend(direction_channels)
 
         for _ in range(extra_empty_layers): 
             channels.append(self.make_empty_grid(2*visibility + 1))
 
         return np.array(channels)
-
     
     def make_empty_grid(self, size): # this isn't worth a function really, it used to have a check for None to set to full grid but now there isn't really a full grid
         grid = np.zeros((size, size), dtype=np.float32)
@@ -232,7 +266,7 @@ class TeacherWrapper(gym.Wrapper):
         super().__init__(env)
         self.env = env
         self.visibility = visibility
-        num_channels = 1+env._num_types_special_regions+1+2 # agent + one per region type + target + delta row + delta col
+        num_channels = 1+env._num_types_special_regions+1+self.env.num_directions # agent + one per region type + target + angle (one-hot encoded)
         grid_size = 2*visibility + 1
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(num_channels, grid_size, grid_size), dtype=np.float32)
         

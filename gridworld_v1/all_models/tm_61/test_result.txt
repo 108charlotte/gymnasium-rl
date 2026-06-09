@@ -1,0 +1,92 @@
+
+Same size tests:
+
+Test 1:
+
+Step 0 | Action: 3 | Reward: -0.5
+Step 1 | Action: 0 | Reward: -0.5
+Step 2 | Action: 0 | Reward: -0.5
+Step 3 | Action: 0 | Reward: -0.5
+Step 4 | Action: 3 | Reward: -0.5
+Step 5 | Action: 3 | Reward: 50
+Reached goal after 6 steps | Total reward: 47.5
+
+Test 2:
+
+Step 0 | Action: 0 | Reward: -0.5
+Step 1 | Action: 3 | Reward: -0.5
+Step 2 | Action: 0 | Reward: -0.5
+Step 3 | Action: 0 | Reward: -0.5
+Step 4 | Action: 0 | Reward: -0.5
+Step 5 | Action: 1 | Reward: -0.5
+Step 6 | Action: 0 | Reward: -0.5
+Step 7 | Action: 3 | Reward: -0.5
+Step 8 | Action: 3 | Reward: -0.5
+Step 9 | Action: 0 | Reward: -0.5
+Step 10 | Action: 3 | Reward: -0.5
+Step 11 | Action: 3 | Reward: -0.5
+Step 12 | Action: 2 | Reward: -0.5
+Step 13 | Action: 3 | Reward: -0.5
+Step 14 | Action: 1 | Reward: -0.5
+Step 15 | Action: 3 | Reward: -0.5
+Step 16 | Action: 1 | Reward: -0.5
+Step 17 | Action: 3 | Reward: -0.5
+Step 18 | Action: 1 | Reward: -0.5
+Step 19 | Action: 3 | Reward: -0.5
+Step 20 | Action: 1 | Reward: -0.5
+Step 21 | Action: 3 | Reward: -0.5
+Step 22 | Action: 1 | Reward: -0.5
+Step 23 | Action: 3 | Reward: -0.5
+Step 24 | Action: 3 | Reward: -0.5
+Truncated after 25 steps | Total reward: -12.5
+
+Test 3:
+
+Step 0 | Action: 3 | Reward: 50
+Reached goal after 1 steps | Total reward: 50
+
+2x size tests:
+
+Test 1:
+
+Step 0 | Action: 3 | Reward: -0.5
+Step 1 | Action: 2 | Reward: -0.5
+Step 2 | Action: 3 | Reward: -0.5
+Step 3 | Action: 3 | Reward: 50
+Reached goal after 4 steps | Total reward: 48.5
+
+Test 2:
+
+Step 0 | Action: 1 | Reward: -0.5
+Step 1 | Action: 1 | Reward: 50
+Reached goal after 2 steps | Total reward: 49.5
+
+Test 3:
+
+Step 0 | Action: 2 | Reward: -0.5
+Step 1 | Action: 1 | Reward: -0.5
+Step 2 | Action: 2 | Reward: -5.0
+Step 3 | Action: 3 | Reward: -0.5
+Step 4 | Action: 2 | Reward: -0.5
+Step 5 | Action: 3 | Reward: -5.0
+Step 6 | Action: 0 | Reward: -0.5
+Step 7 | Action: 2 | Reward: -5.0
+Step 8 | Action: 0 | Reward: -0.5
+Step 9 | Action: 3 | Reward: -0.5
+Step 10 | Action: 0 | Reward: -0.5
+Step 11 | Action: 0 | Reward: -0.5
+Step 12 | Action: 2 | Reward: -0.5
+Step 13 | Action: 0 | Reward: -0.5
+Step 14 | Action: 2 | Reward: -0.5
+Step 15 | Action: 0 | Reward: -0.5
+Step 16 | Action: 2 | Reward: -0.5
+Step 17 | Action: 0 | Reward: -0.5
+Step 18 | Action: 2 | Reward: -0.5
+Step 19 | Action: 0 | Reward: -0.5
+Step 20 | Action: 2 | Reward: -0.5
+Step 21 | Action: 0 | Reward: -0.5
+Step 22 | Action: 2 | Reward: -0.5
+Step 23 | Action: 0 | Reward: -0.5
+Step 24 | Action: 2 | Reward: -0.5
+Truncated after 25 steps | Total reward: -26.0
+Went through special region

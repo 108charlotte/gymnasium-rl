@@ -4,7 +4,7 @@ import papermill as pm
 # initialization
 learning_rate = 0.001
 initial_epsilon = 1
-epsilon_decay = 0.9995
+epsilon_decay = 0.999 # reduced
 final_epsilon = 0.05
 discount_factor = 0.99
 
@@ -14,43 +14,46 @@ target_update_freq = 500 # for target CNN, in steps
 visibility = 4
 
 goal_reward = 10
-step_penalty = -0.5
+step_penalty = -0.1
 
 num_special_regions = 1
 special_region_rewards = [-5.0]
+num_directions = 16 # this is the default anyways
+reward_shaping = False # this is also the default
 
 experience_capacity = 8000
 batch_size = 64
 
-grid_sizes = [5, 9] # training on different sizes for better generalizability, these grid sizes are arbitrary
+spawn_widths = [5, 10, 15] # matters for target placement
 
 num_filters_first_layer = 16
 final_conv_filters = num_filters_first_layer * 2
-target_spatial_size = 1
+target_spatial_size = 3
 
 changes = None # will be overriden by papermill if running headlessly, and if not I'll get from input
-
+notes = None
 # end copy from phase_1.ipynb
-
-# potential TODO: get rid of all walls (still restrict where target and agents can spawn by grid size tho)
 
 # update this! 
 experiments = [
     {
-        "changes": "test1", 
-        "episodes": 1000, # just testing if it works
-    }, 
-    {
-        "changes": "lower visibility", 
-        "visibility": 3, 
-        "episodes": 10_000
-    }, 
-    {
-        "changes": "lower discount factor", 
-        "discount_factor": 0.9, 
-        "episodes": 10_000
+        "changes": "testing to make sure compass value recording is working", 
+        "episodes": 100
     }
 ]
+
+'''
+{
+    "changes": "higher step penalty to encourage efficiency", 
+    "reward_shaping": reward_shaping, 
+    "step_penalty": -0.2
+}, 
+{
+    "changes": "even higher step penalty to encourage efficiency", 
+    "reward_shaping": reward_shaping, 
+    "step_penalty": -0.5
+}, 
+'''
 
 for run_id, experiment in enumerate(experiments, start=1): 
     inputs = {
@@ -69,7 +72,7 @@ for run_id, experiment in enumerate(experiments, start=1):
         "special_region_rewards": experiment.get("special_region_rewards", special_region_rewards),
         "experience_capacity": experiment.get("experience_capacity", experience_capacity),
         "batch_size": experiment.get("batch_size", batch_size),
-        "grid_sizes": experiment.get("grid_sizes", grid_sizes),
+        "spawn_widths": experiment.get("spawn_widths", spawn_widths),
         "num_filters_first_layer": experiment.get("num_filters_first_layer", num_filters_first_layer),
         "final_conv_filters": experiment.get("num_filters_first_layer", num_filters_first_layer) * 2,
         "target_spatial_size": experiment.get("target_spatial_size", target_spatial_size),
@@ -81,7 +84,7 @@ for run_id, experiment in enumerate(experiments, start=1):
         'phase_1.ipynb', 
         'phase_1_output.ipynb', # don't super care about this so fine with it being overriden each run
         parameters=inputs, # will configure this in .ipynb later
-        log_output=False
+        log_output=True
     )
 
     print(f"Finished execution for {run_id}")

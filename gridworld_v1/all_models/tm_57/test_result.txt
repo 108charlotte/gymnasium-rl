@@ -1,0 +1,67 @@
+
+Same size tests:
+
+Test 1:
+
+Step 0 | Action: 2 | Reward: -0.5
+Step 1 | Action: 2 | Reward: -0.5
+Step 2 | Action: 0 | Reward: -0.5
+Step 3 | Action: 2 | Reward: -0.5
+Step 4 | Action: 0 | Reward: -0.5
+Step 5 | Action: 2 | Reward: -0.5
+Step 6 | Action: 0 | Reward: -0.5
+Step 7 | Action: 2 | Reward: -0.5
+Step 8 | Action: 0 | Reward: -0.5
+Step 9 | Action: 2 | Reward: -0.5
+Step 10 | Action: 0 | Reward: -0.5
+Step 11 | Action: 2 | Reward: -0.5
+Step 12 | Action: 0 | Reward: -0.5
+Step 13 | Action: 2 | Reward: -0.5
+Step 14 | Action: 0 | Reward: -0.5
+Step 15 | Action: 2 | Reward: -0.5
+Step 16 | Action: 0 | Reward: -0.5
+Step 17 | Action: 2 | Reward: -0.5
+Step 18 | Action: 0 | Reward: -0.5
+Step 19 | Action: 2 | Reward: -0.5
+Truncated after 20 steps | Total reward: -10.0
+
+Test 2:
+
+Step 0 | Action: 2 | Reward: -0.5
+Step 1 | Action: 2 | Reward: -0.5
+Step 2 | Action: 2 | Reward: -0.5
+Step 3 | Action: 2 | Reward: -0.5
+Step 4 | Action: 1 | Reward: 10
+Reached goal after 5 steps | Total reward: 8.0
+
+Test 3:
+
+Step 0 | Action: 2 | Reward: -0.5
+Step 1 | Action: 2 | Reward: -0.5
+Step 2 | Action: 3 | Reward: -0.5
+Step 3 | Action: 2 | Reward: 10
+Reached goal after 4 steps | Total reward: 8.5
+
+2x size tests:
+
+Test 1:
+
+Step 0 | Action: 1 | Reward: -0.5
+Step 1 | Action: 2 | Reward: 10
+Reached goal after 2 steps | Total reward: 9.5
+
+Test 2:
+
+Step 0 | Action: 0 | Reward: -0.5
+Step 1 | Action: 1 | Reward: -0.5
+Step 2 | Action: 1 | Reward: 10
+Reached goal after 3 steps | Total reward: 9.0
+
+Test 3:
+
+Step 0 | Action: 0 | Reward: -0.5
+Step 1 | Action: 0 | Reward: -5.0
+Step 2 | Action: 3 | Reward: -0.5
+Step 3 | Action: 0 | Reward: 10
+Reached goal after 4 steps | Total reward: 4.0
+Went through special region

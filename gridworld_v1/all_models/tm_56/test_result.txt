@@ -1,0 +1,45 @@
+
+Same size tests:
+
+Test 1:
+
+Step 0 | Action: 0 | Reward: -5.0
+Step 1 | Action: 0 | Reward: 10
+Reached goal after 2 steps | Total reward: 5.0
+Went through special region
+
+Test 2:
+
+Step 0 | Action: 3 | Reward: -0.5
+Step 1 | Action: 3 | Reward: -0.5
+Step 2 | Action: 3 | Reward: 10
+Reached goal after 3 steps | Total reward: 9.0
+
+Test 3:
+
+Step 0 | Action: 2 | Reward: -0.5
+Step 1 | Action: 2 | Reward: 10
+Reached goal after 2 steps | Total reward: 9.5
+
+2x size tests:
+
+Test 1:
+
+Step 0 | Action: 2 | Reward: -0.5
+Step 1 | Action: 1 | Reward: -0.5
+Step 2 | Action: 1 | Reward: -0.5
+Step 3 | Action: 1 | Reward: -0.5
+Step 4 | Action: 0 | Reward: 10
+Reached goal after 5 steps | Total reward: 8.0
+
+Test 2:
+
+Step 0 | Action: 1 | Reward: -0.5
+Step 1 | Action: 1 | Reward: -0.5
+Step 2 | Action: 2 | Reward: 10
+Reached goal after 3 steps | Total reward: 9.0
+
+Test 3:
+
+Step 0 | Action: 1 | Reward: 10
+Reached goal after 1 steps | Total reward: 10
