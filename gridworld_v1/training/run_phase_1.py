@@ -40,9 +40,8 @@ notes = None
 
 experiments = [
     {
-        "changes": "testing without special regions (and more episodes, for good measure)", 
-        "num_special_regions": 0, 
-        "episodes": 15000
+        "changes": "testing with 1 special region and 20000 episodes while I can brute force ;)", 
+        "episodes": 20_000
     },  
 ]
 

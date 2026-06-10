@@ -78,6 +78,18 @@ class GridWorldBase(gym.Env):
         # TODO: fix this so its not hard-coded for the teacher, maybe use agent loc
         return self.goal_reward + dir_reward if np.array_equal(self._teacher_agent_location, self._target_location) else self.step_penalty + dir_reward
 
+    def get_student_teacher_alignment_reward(self, student_action, teacher_action): 
+        corresponding_student_action_angle = student_action * math.pi/2
+        corresponding_teacher_action_angle = teacher_action * math.pi/2
+        
+        # there is 100% a better way to do this
+        stud_comps =(math.cos(corresponding_student_action_angle), math.sin(corresponding_student_action_angle))
+        teach_comps = (math.cos(corresponding_teacher_action_angle), math.sin(corresponding_teacher_action_angle))
+
+        dot = np.dot(stud_comps, teach_comps)
+        scaled_dot = dot * self.compass_penalty_multiplier # TODO: add its own multiplier
+        return scaled_dot
+
     def get_angle_for_dx_dy(self, dx, dy): # returns on scale of [0, 2pi)
         return (math.atan2(-dx, dy) + 2*math.pi) % (2*math.pi)
     
@@ -311,6 +323,7 @@ class TeacherWrapper(gym.Wrapper):
         return teacher_obs, info
 
 # gets teacher's actions in real-time, but no special region penalties (can see them, just not penalties, hopefully learns penalties)
+# same reward function as teacher but also including reward for following or not following teacher's actions; doesn't include penalties for special regions
 class StudentWrapper(gym.Wrapper): 
     def __init__(self, env, visibility : int, max_steps: int = 50, special_region_rewards: list[float] = []): # if visibility not passed just sees whole world, defaults to ignoring regions
         super().__init__(env)
@@ -325,17 +338,16 @@ class StudentWrapper(gym.Wrapper):
         
     def step(self, action): 
         full_obs, rewards, terminations, _, info = self.env.step_one_agent(action)
-
         self.num_steps += 1
         
-        reward = rewards["student"]
-        terminated = terminations["teacher"]
+        reward = rewards["student"] # function for calculating how close student action is to teacher action will be in the base env
+        terminated = terminations["student"]
         truncated = self.max_steps <= self.num_steps
 
-        obs = self.env.make_one_agent_grid_relative("teacher", self.visibility)
+        obs = self.env.make_one_agent_grid_relative("student", self.visibility)
 
         # update reward based on special_region_rewards values
-        curr_region = self.env.get_curr_special_region("teacher")
+        curr_region = self.env.get_curr_special_region("student")
         if curr_region is not None: # in some special region
             reward = self.special_region_rewards[curr_region]
         
@@ -350,6 +362,6 @@ class StudentWrapper(gym.Wrapper):
         self.path = [self.env._teacher_agent_location.copy()]
         self.num_steps = 0
         
-        teacher_obs = self.env.make_one_agent_grid_relative("teacher", self.visibility)
+        teacher_obs = self.env.make_one_agent_grid_relative("student", self.visibility)
         
         return teacher_obs, info
