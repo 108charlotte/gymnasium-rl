@@ -4,7 +4,7 @@ initial_epsilon = 1
 epsilon_decay = 0.999
 final_epsilon = 0.05
 discount_factor = 0.99
-episodes = 100
+episodes = 10000
 max_steps = 40
 target_update_freq = 500
 visibility = 4
@@ -21,6 +21,6 @@ num_directions = 16
 reward_shaping = False
 
 
-Training Time: 00:12
-Changes: testing to make sure compass value recording is working
+Training Time: 19:50
+Changes: increased compass penalty multiplier for greater reward signal
 Notes: Ran in the background, may add notes later if this run was important/a checkpoint

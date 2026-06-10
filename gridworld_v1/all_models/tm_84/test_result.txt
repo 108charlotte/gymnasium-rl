@@ -1,0 +1,181 @@
+
+Same size tests:
+
+Test 1:
+
+Step 0 | Action: 1 | Reward: -0.1
+Step 1 | Action: 3 | Reward: -0.1
+Step 2 | Action: 1 | Reward: -0.1
+Step 3 | Action: 3 | Reward: -0.1
+Step 4 | Action: 1 | Reward: -0.1
+Step 5 | Action: 3 | Reward: -0.1
+Step 6 | Action: 2 | Reward: -0.1
+Step 7 | Action: 1 | Reward: -0.1
+Step 8 | Action: 3 | Reward: -0.1
+Step 9 | Action: 1 | Reward: -0.1
+Step 10 | Action: 3 | Reward: -0.1
+Step 11 | Action: 1 | Reward: -0.1
+Step 12 | Action: 3 | Reward: -0.1
+Step 13 | Action: 1 | Reward: -0.1
+Step 14 | Action: 3 | Reward: -0.1
+Step 15 | Action: 1 | Reward: -0.1
+Step 16 | Action: 3 | Reward: -0.1
+Step 17 | Action: 1 | Reward: -0.1
+Step 18 | Action: 3 | Reward: -0.1
+Step 19 | Action: 1 | Reward: -0.1
+Step 20 | Action: 3 | Reward: -0.1
+Step 21 | Action: 1 | Reward: -0.1
+Step 22 | Action: 3 | Reward: -0.1
+Step 23 | Action: 1 | Reward: -0.1
+Step 24 | Action: 3 | Reward: -0.1
+Step 25 | Action: 1 | Reward: -0.1
+Step 26 | Action: 3 | Reward: -0.1
+Step 27 | Action: 1 | Reward: -0.1
+Step 28 | Action: 3 | Reward: -0.1
+Step 29 | Action: 1 | Reward: -0.1
+Step 30 | Action: 3 | Reward: -0.1
+Step 31 | Action: 1 | Reward: -0.1
+Step 32 | Action: 3 | Reward: -0.1
+Step 33 | Action: 1 | Reward: -0.1
+Step 34 | Action: 3 | Reward: -0.1
+Step 35 | Action: 1 | Reward: -0.1
+Step 36 | Action: 3 | Reward: -0.1
+Step 37 | Action: 1 | Reward: -0.1
+Step 38 | Action: 3 | Reward: -0.1
+Step 39 | Action: 1 | Reward: -0.1
+Step 40 | Action: 3 | Reward: -0.1
+Step 41 | Action: 1 | Reward: -0.1
+Step 42 | Action: 3 | Reward: -0.1
+Step 43 | Action: 1 | Reward: -0.1
+Step 44 | Action: 3 | Reward: -0.1
+Step 45 | Action: 1 | Reward: -0.1
+Step 46 | Action: 3 | Reward: -0.1
+Step 47 | Action: 1 | Reward: -0.1
+Step 48 | Action: 3 | Reward: -0.1
+Step 49 | Action: 1 | Reward: -0.1
+Step 50 | Action: 3 | Reward: -0.1
+Step 51 | Action: 1 | Reward: -0.1
+Step 52 | Action: 3 | Reward: -0.1
+Step 53 | Action: 1 | Reward: -0.1
+Step 54 | Action: 3 | Reward: -0.1
+Step 55 | Action: 1 | Reward: -0.1
+Step 56 | Action: 3 | Reward: -0.1
+Step 57 | Action: 1 | Reward: -0.1
+Step 58 | Action: 3 | Reward: -0.1
+Step 59 | Action: 1 | Reward: -0.1
+Truncated after 60 steps | Total reward: -5.999999999999995
+
+Test 2:
+
+Step 0 | Action: 1 | Reward: -0.1
+Step 1 | Action: 1 | Reward: -0.1
+Step 2 | Action: 1 | Reward: -0.1
+Step 3 | Action: 2 | Reward: -0.1
+Step 4 | Action: 2 | Reward: -0.1
+Step 5 | Action: 2 | Reward: 10
+Reached goal after 6 steps | Total reward: 9.5
+
+Test 3:
+
+Step 0 | Action: 2 | Reward: -0.1
+Step 1 | Action: 1 | Reward: -0.1
+Step 2 | Action: 1 | Reward: -0.1
+Step 3 | Action: 1 | Reward: -0.1
+Step 4 | Action: 1 | Reward: -0.1
+Step 5 | Action: 0 | Reward: -0.1
+Step 6 | Action: 0 | Reward: -0.1
+Step 7 | Action: 1 | Reward: -0.1
+Step 8 | Action: 1 | Reward: -0.1
+Step 9 | Action: 1 | Reward: 10
+Reached goal after 10 steps | Total reward: 9.1
+
+2x size tests:
+
+Test 1:
+
+Step 0 | Action: 1 | Reward: -0.1
+Step 1 | Action: 1 | Reward: -0.1
+Step 2 | Action: 1 | Reward: -0.1
+Step 3 | Action: 1 | Reward: -0.1
+Step 4 | Action: 2 | Reward: -0.1
+Step 5 | Action: 2 | Reward: -0.1
+Step 6 | Action: 2 | Reward: -0.1
+Step 7 | Action: 1 | Reward: 10
+Reached goal after 8 steps | Total reward: 9.3
+
+Test 2:
+
+Step 0 | Action: 1 | Reward: -0.1
+Step 1 | Action: 1 | Reward: -0.1
+Step 2 | Action: 0 | Reward: -0.1
+Step 3 | Action: 3 | Reward: -0.1
+Step 4 | Action: 3 | Reward: -0.1
+Step 5 | Action: 1 | Reward: -0.1
+Step 6 | Action: 3 | Reward: -0.1
+Step 7 | Action: 1 | Reward: -0.1
+Step 8 | Action: 3 | Reward: -0.1
+Step 9 | Action: 1 | Reward: -0.1
+Step 10 | Action: 3 | Reward: -0.1
+Step 11 | Action: 1 | Reward: -0.1
+Step 12 | Action: 3 | Reward: -0.1
+Step 13 | Action: 1 | Reward: -0.1
+Step 14 | Action: 3 | Reward: -0.1
+Step 15 | Action: 1 | Reward: -0.1
+Step 16 | Action: 3 | Reward: -0.1
+Step 17 | Action: 1 | Reward: -0.1
+Step 18 | Action: 3 | Reward: -0.1
+Step 19 | Action: 1 | Reward: -0.1
+Step 20 | Action: 3 | Reward: -0.1
+Step 21 | Action: 1 | Reward: -0.1
+Step 22 | Action: 3 | Reward: -0.1
+Step 23 | Action: 3 | Reward: -0.1
+Step 24 | Action: 3 | Reward: -0.1
+Step 25 | Action: 1 | Reward: -0.1
+Step 26 | Action: 2 | Reward: -0.1
+Step 27 | Action: 2 | Reward: -0.1
+Step 28 | Action: 2 | Reward: -0.1
+Step 29 | Action: 3 | Reward: -0.1
+Step 30 | Action: 3 | Reward: -0.1
+Step 31 | Action: 3 | Reward: -0.1
+Step 32 | Action: 3 | Reward: -0.1
+Step 33 | Action: 3 | Reward: -0.1
+Step 34 | Action: 1 | Reward: -0.1
+Step 35 | Action: 3 | Reward: -0.1
+Step 36 | Action: 1 | Reward: -0.1
+Step 37 | Action: 3 | Reward: -0.1
+Step 38 | Action: 1 | Reward: -0.1
+Step 39 | Action: 3 | Reward: -0.1
+Step 40 | Action: 1 | Reward: -0.1
+Step 41 | Action: 3 | Reward: -0.1
+Step 42 | Action: 1 | Reward: -0.1
+Step 43 | Action: 3 | Reward: -0.1
+Step 44 | Action: 1 | Reward: -0.1
+Step 45 | Action: 0 | Reward: -0.1
+Step 46 | Action: 2 | Reward: -0.1
+Step 47 | Action: 3 | Reward: -0.1
+Step 48 | Action: 1 | Reward: -0.1
+Step 49 | Action: 3 | Reward: -0.1
+Step 50 | Action: 1 | Reward: -0.1
+Step 51 | Action: 3 | Reward: -0.1
+Step 52 | Action: 1 | Reward: -0.1
+Step 53 | Action: 3 | Reward: -0.1
+Step 54 | Action: 1 | Reward: -0.1
+Step 55 | Action: 3 | Reward: -0.1
+Step 56 | Action: 1 | Reward: -0.1
+Step 57 | Action: 3 | Reward: -0.1
+Step 58 | Action: 1 | Reward: -0.1
+Step 59 | Action: 3 | Reward: -0.1
+Truncated after 60 steps | Total reward: -5.999999999999995
+
+Test 3:
+
+Step 0 | Action: 1 | Reward: -0.1
+Step 1 | Action: 3 | Reward: -0.1
+Step 2 | Action: 3 | Reward: -0.1
+Step 3 | Action: 2 | Reward: -0.1
+Step 4 | Action: 2 | Reward: -0.1
+Step 5 | Action: 2 | Reward: -0.1
+Step 6 | Action: 3 | Reward: -0.1
+Step 7 | Action: 2 | Reward: -0.1
+Step 8 | Action: 2 | Reward: 10
+Reached goal after 9 steps | Total reward: 9.2

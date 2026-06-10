@@ -1,6 +1,8 @@
 import papermill as pm
 
 # defaults
+mode = "train" # default
+model_folder_path = None
 # initialization
 learning_rate = 0.001
 initial_epsilon = 1
@@ -19,7 +21,7 @@ step_penalty = -0.1
 num_special_regions = 1
 special_region_rewards = [-5.0]
 num_directions = 16 # this is the default anyways
-reward_shaping = False # this is also the default
+reward_shaping = True
 
 experience_capacity = 8000
 batch_size = 64
@@ -29,35 +31,48 @@ spawn_widths = [5, 10, 15] # matters for target placement
 num_filters_first_layer = 16
 final_conv_filters = num_filters_first_layer * 2
 target_spatial_size = 3
+compass_penalty_multiplier = 1
 
 changes = None # will be overriden by papermill if running headlessly, and if not I'll get from input
 notes = None
 # end copy from phase_1.ipynb
 
-# update this! 
+
 experiments = [
     {
-        "changes": "testing to make sure compass value recording is working", 
-        "episodes": 100
-    }
+        "changes": "lower discount multiplier", 
+        "compass_penalty_multiplier": 0.05, 
+        "discount_factor": 0.95
+    }, 
+    {
+        "changes": "lower target update frequency", 
+        "compass_penalty_multiplier": 0.05, 
+        "target_update_freq": 200, 
+    }, 
+    {
+        "changes": "both of the last 2 changes at once", 
+        "compass_penalty_multiplier": 0.05, 
+        "discount_factor": 0.95, 
+        "target_update_freq": 200, 
+    }, 
 ]
 
 '''
 {
-    "changes": "higher step penalty to encourage efficiency", 
-    "reward_shaping": reward_shaping, 
-    "step_penalty": -0.2
-}, 
-{
-    "changes": "even higher step penalty to encourage efficiency", 
-    "reward_shaping": reward_shaping, 
-    "step_penalty": -0.5
-}, 
+    "changes": "just running w/ test, shouldn't see anything", 
+    "episodes": 50, 
+    "mode": "test", 
+    "model_folder_path": "tm_75" # should just need folder name
+}
 '''
+
 
 for run_id, experiment in enumerate(experiments, start=1): 
     inputs = {
         "changes": experiment["changes"], 
+        "mode": experiment.get("mode", mode), 
+        "compass_penalty_multiplier": experiment.get("compass_penalty_multiplier", compass_penalty_multiplier), 
+        "model_folder_path": experiment.get("model_folder_path", model_folder_path), 
         "learning_rate": experiment.get("learning_rate", learning_rate),
         "epsilon_decay": experiment.get("epsilon_decay", epsilon_decay),
         "final_epsilon": experiment.get("final_epsilon", final_epsilon),

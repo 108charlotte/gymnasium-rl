@@ -4,13 +4,14 @@ import math
 import pandas as pd
 
 class GridWorldBase(gym.Env): 
-    def __init__(self, num_types_special_regions: int = 0, goal_reward: int = 10, step_penalty: float = -0.1, spawn_width:int = 10, num_directions:int = 16, reward_shaping=False): 
+    def __init__(self, num_types_special_regions: int = 0, goal_reward: int = 10, step_penalty: float = -0.1, spawn_width:int = 10, num_directions:int = 16, reward_shaping=False, compass_penalty_multiplier:float=0.05): 
         self._num_types_special_regions = num_types_special_regions
         self.goal_reward = goal_reward
         self.step_penalty = step_penalty
         self.spawn_width = spawn_width
         self.num_directions = num_directions
         self.reward_shaping = reward_shaping
+        self.compass_penalty_multiplier = compass_penalty_multiplier
 
         self.curr_world_bounds = np.array([(0,0),(spawn_width,spawn_width)]) # (smallest x, smallest y), (greatest x, greatest y)
 
@@ -65,17 +66,19 @@ class GridWorldBase(gym.Env):
         return self._get_obs(), {} # empty info
 
     def get_reward_no_shaping(self): 
-        return {"teacher": self.goal_reward if np.array_equal(self._teacher_agent_location, self._target_location) else self.step_penalty, "student": self.goal_reward if np.array_equal(self._student_agent_location, self._target_location) else self.step_penalty}
+        return self.goal_reward if np.array_equal(self._teacher_agent_location, self._target_location) else self.step_penalty
     
     def get_reward_with_shaping(self, old_loc, agent_loc): # uses bucketed angles
         move_angle = self.get_bucketed_angle(self.get_angle_for_coords(old_loc, agent_loc))
         target_angle = self.get_bucketed_angle(self.get_angle_for_coords(self._target_location, old_loc))
-        angle_diff = abs(move_angle - target_angle)
-        angle_diff = min(angle_diff, 2*math.pi - angle_diff) # converts to positive (0 to 2pi scale)
-        dir_reward = 0.05 * math.cos(angle_diff) # current formula from claude, may change later
-        return {"teacher": self.goal_reward + dir_reward if np.array_equal(self._teacher_agent_location, self._target_location) else self.step_penalty + dir_reward, "student": self.goal_reward + dir_reward if np.array_equal(self._student_agent_location, self._target_location) else self.step_penalty + dir_reward}
+        bin_diff = abs(move_angle - target_angle)
+        bin_diff = min(bin_diff, self.num_directions - bin_diff) # removes negatives
+        max_bin_diff = self.num_directions // 2 # furthest apart that 2 bins can be is half of total num of divisions of the circle
+        dir_reward = self.compass_penalty_multiplier * (1- 2*bin_diff/max_bin_diff) # when bin_diff = max_bin_diff, this will give -1 bc they're going in the opposite direction; when bin_diff = max_bin_diff/2, they're perpendicular, and when bin_diff = 0 will return 1; current formula from claude, may change later
+        # TODO: fix this so its not hard-coded for the teacher, maybe use agent loc
+        return self.goal_reward + dir_reward if np.array_equal(self._teacher_agent_location, self._target_location) else self.step_penalty + dir_reward
 
-    def get_angle_for_dx_dy(self, dx, dy): # returns on scale of [0, 2pi]
+    def get_angle_for_dx_dy(self, dx, dy): # returns on scale of [0, 2pi)
         return (math.atan2(-dx, dy) + 2*math.pi) % (2*math.pi)
     
     def get_bucketed_angle(self, angle): 
@@ -103,7 +106,7 @@ class GridWorldBase(gym.Env):
         terminations = {"teacher": np.array_equal(self._teacher_agent_location, self._target_location), "student": np.array_equal(self._student_agent_location, self._target_location)}
         truncated = False # will be overridden in wrappers, since wrappers keep track of steps for each agent (not part of world environment)
         # unless overridden later by special area rules for teacher, small penalties for all areas except for goal to encourage going to goal
-        rewards = self.get_reward_with_shaping(old_loc, agent_loc) if self.reward_shaping else self.get_reward_no_shaping()
+        rewards = {"teacher": self.get_reward_with_shaping(old_loc, agent_loc) if self.reward_shaping else self.get_reward_no_shaping(), "student": self.get_reward_with_shaping(old_loc, agent_loc) if self.reward_shaping else self.get_reward_no_shaping()}
         full_observations = self.get_full_world_state()
         # placeholder to not crash
         infos = {"teacher": {}, "student": {}}

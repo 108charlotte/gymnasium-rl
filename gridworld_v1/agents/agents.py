@@ -139,13 +139,34 @@ class TeacherAgent:
 
         return loss.item() # for visualization
     
+    def save_model(self, path_to_save): 
+        checkpoint = {
+            "model_state_dict": self.model.state_dict(),
+            "target_model_state_dict": self.target_model.state_dict(),
+            "optimizer_state_dict": self.optimizer.state_dict(),
+            "epsilon": self.epsilon,
+            "steps_done": self.steps_done,
+            "num_filters_first_layer": self.num_filters_first_layer,
+            "final_conv_filters": self.final_conv_filters,
+            "target_spatial_size": self.target_spatial_size,
+            "num_directions": self.num_directions,
+            "num_types_special_regions_in_env": self.num_types_special_regions_in_env,
+            "learning_rate": self.learning_rate,
+            "discount_factor": self.discount_factor,
+        }
+        
+        torch.save(checkpoint, path_to_save)
+    
     def load_model_from_saved(self, path_to_save):
         checkpoint = torch.load(path_to_save, map_location=self.device)
 
+        self.epsilon = checkpoint.get("epsilon", self.epsilon)
+        self.steps_done = checkpoint.get("steps_done", 0)
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.target_model.load_state_dict(checkpoint["model_state_dict"])
-        
-        print("loaded weights and hyperparams")
+        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        self.model.to(self.device)
+        self.target_model.to(self.device)
 
 
 
