@@ -40,14 +40,18 @@ notes = None
 
 experiments = [
     {
-        "changes": "testing without special regions", 
-        "num_special_regions": 0
+        "changes": "trying lower discount factor", 
+        "episodes": 20_000, 
+        "discount_factor": 0.95, 
     }, 
     {
-        "changes": "testing with lower discount factor", 
-        "discount_factor": 0.9
-    }
-]
+        "changes": "even lower discount factor :')", 
+        "episodes": 20_000, 
+        "discount_factor": 0.90, 
+    }, 
+
+    ]
+
 
 for run_id, experiment in enumerate(experiments, start=1): 
     inputs = {

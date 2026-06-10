@@ -4,7 +4,7 @@ import math
 import pandas as pd
 
 class GridWorldBase(gym.Env): 
-    def __init__(self, num_types_special_regions: int = 0, goal_reward: int = 10, step_penalty: float = -0.1, spawn_width:int = 10, num_directions:int = 16, reward_shaping=False, compass_penalty_multiplier:float=0.05): 
+    def __init__(self, num_types_special_regions: int = 0, goal_reward: int = 10, step_penalty: float = -0.1, spawn_width:int = 10, num_directions:int = 16, reward_shaping=False, compass_penalty_multiplier:float=0.05, student_teacher_alignment_multiplier:float=0.05): 
         self._num_types_special_regions = num_types_special_regions
         self.goal_reward = goal_reward
         self.step_penalty = step_penalty
@@ -12,6 +12,7 @@ class GridWorldBase(gym.Env):
         self.num_directions = num_directions
         self.reward_shaping = reward_shaping
         self.compass_penalty_multiplier = compass_penalty_multiplier
+        self.student_teacher_alignment_multiplier = student_teacher_alignment_multiplier
 
         self.curr_world_bounds = np.array([(0,0),(spawn_width,spawn_width)]) # (smallest x, smallest y), (greatest x, greatest y)
 
@@ -75,8 +76,19 @@ class GridWorldBase(gym.Env):
         bin_diff = min(bin_diff, self.num_directions - bin_diff) # removes negatives
         max_bin_diff = self.num_directions // 2 # furthest apart that 2 bins can be is half of total num of divisions of the circle
         dir_reward = self.compass_penalty_multiplier * (1- 2*bin_diff/max_bin_diff) # when bin_diff = max_bin_diff, this will give -1 bc they're going in the opposite direction; when bin_diff = max_bin_diff/2, they're perpendicular, and when bin_diff = 0 will return 1; current formula from claude, may change later
-        # TODO: fix this so its not hard-coded for the teacher, maybe use agent loc
-        return self.goal_reward + dir_reward if np.array_equal(self._teacher_agent_location, self._target_location) else self.step_penalty + dir_reward
+        return self.goal_reward + dir_reward if np.array_equal(agent_loc, self._target_location) else self.step_penalty + dir_reward
+
+    def get_student_teacher_alignment_reward(self, student_action, teacher_action): # to make this work, I'm going to need to store the teacher's last action since step_one_agent only moves one...maybe I'll make a step_both_agents for this
+        corresponding_student_action_angle = student_action * math.pi/2
+        corresponding_teacher_action_angle = teacher_action * math.pi/2
+        
+        # there is 100% a better way to do this
+        stud_comps =(math.cos(corresponding_student_action_angle), math.sin(corresponding_student_action_angle))
+        teach_comps = (math.cos(corresponding_teacher_action_angle), math.sin(corresponding_teacher_action_angle))
+
+        dot = np.dot(stud_comps, teach_comps)
+        scaled_dot = dot * self.student_teacher_alignment_multiplier
+        return scaled_dot
 
     def get_angle_for_dx_dy(self, dx, dy): # returns on scale of [0, 2pi)
         return (math.atan2(-dx, dy) + 2*math.pi) % (2*math.pi)
@@ -102,7 +114,6 @@ class GridWorldBase(gym.Env):
             self._student_agent_location += direction
             agent_loc = self._student_agent_location
 
-
         terminations = {"teacher": np.array_equal(self._teacher_agent_location, self._target_location), "student": np.array_equal(self._student_agent_location, self._target_location)}
         truncated = False # will be overridden in wrappers, since wrappers keep track of steps for each agent (not part of world environment)
         # unless overridden later by special area rules for teacher, small penalties for all areas except for goal to encourage going to goal
@@ -112,6 +123,28 @@ class GridWorldBase(gym.Env):
         infos = {"teacher": {}, "student": {}}
 
         return full_observations, rewards, terminations, truncated, infos
+
+
+    def step_both_agents(self, student_action, teacher_action):  
+        direction = self._action_to_direction[action]
+
+        old_teacher_loc = self._teacher_agent_location.copy()
+        self._teacher_agent_location += direction
+        
+        old_student_loc = self._student_agent_location.copy()
+        self._student_agent_location += direction
+
+        terminations = {"teacher": np.array_equal(self._teacher_agent_location, self._target_location), "student": np.array_equal(self._student_agent_location, self._target_location)}
+        truncated = False # will be overridden in wrappers, since wrappers keep track of steps for each agent (not part of world environment)
+        # unless overridden later by special area rules for teacher, small penalties for all areas except for goal to encourage going to goal
+        # for reference: get_student_teacher_alignment_reward(self, student_action, teacher_action)
+        rewards = {"teacher": self.get_reward_with_shaping(old_loc, agent_loc) if self.reward_shaping else self.get_reward_no_shaping(), "student": self.get_student_teacher_alignment_reward(student_action, teacher_action) + self.get_reward_with_shaping(old_loc, agent_loc) if self.reward_shaping else self.get_reward_no_shaping() + self.get_student_teacher_alignment_reward(student_action, teacher_action)}
+        full_observations = self.get_full_world_state()
+        # placeholder to not crash
+        infos = {"teacher": {}, "student": {}}
+
+        return full_observations, rewards, terminations, truncated, infos
+
 
 
     def get_curr_special_region(self, agent): 
@@ -311,6 +344,7 @@ class TeacherWrapper(gym.Wrapper):
         return teacher_obs, info
 
 # gets teacher's actions in real-time, but no special region penalties (can see them, just not penalties, hopefully learns penalties)
+# same reward function as teacher but also including reward for following or not following teacher's actions; doesn't include penalties for special regions
 class StudentWrapper(gym.Wrapper): 
     def __init__(self, env, visibility : int, max_steps: int = 50, special_region_rewards: list[float] = []): # if visibility not passed just sees whole world, defaults to ignoring regions
         super().__init__(env)
@@ -322,20 +356,19 @@ class StudentWrapper(gym.Wrapper):
         
         self.max_steps = max_steps if max_steps is not None else float('inf') # if none, then no max
         self.num_steps = 0 # init value
-    
-    def step(self, action): 
-        full_obs, rewards, terminations, _, info = self.env.step_one_agent(action)
-
-        self.num_steps += 1
         
-        reward = rewards["teacher"]
-        terminated = terminations["teacher"]
+    def step(self, action): 
+        full_obs, rewards, terminations, _, info = self.env.step_both_agents(action, action) # student and teacher don't do the same thing, this is a placeholder 
+        num_steps += 1
+        
+        reward = rewards["student"] # function for calculating how close student action is to teacher action will be in the base env
+        terminated = terminations["student"]
         truncated = self.max_steps <= self.num_steps
 
-        obs = self.env.make_one_agent_grid_relative("teacher", self.visibility)
+        obs = self.env.make_one_agent_grid_relative("student", self.visibility)
 
         # update reward based on special_region_rewards values
-        curr_region = self.env.get_curr_special_region("teacher")
+        curr_region = self.env.get_curr_special_region("student")
         if curr_region is not None: # in some special region
             reward = self.special_region_rewards[curr_region]
         
@@ -350,6 +383,6 @@ class StudentWrapper(gym.Wrapper):
         self.path = [self.env._teacher_agent_location.copy()]
         self.num_steps = 0
         
-        teacher_obs = self.env.make_one_agent_grid_relative("teacher", self.visibility)
+        teacher_obs = self.env.make_one_agent_grid_relative("student", self.visibility)
         
         return teacher_obs, info
