@@ -1,3 +1,6 @@
 __pycache__/
 
 todo
+.venv/
+.DSStore
+# idk if these are even right lol

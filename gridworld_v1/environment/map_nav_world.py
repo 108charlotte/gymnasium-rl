@@ -1,9 +1,11 @@
+# TODO; not yet implemented, just old code tho
+
 import numpy as np
 import gymnasium as gym
 import math
 import pandas as pd
 
-class GridWorldBase(gym.Env): 
+class MapNavGridworldBase(gym.Env): 
     def __init__(self, num_types_special_regions: int = 0, goal_reward: int = 10, step_penalty: float = -0.1, spawn_width:int = 10, num_directions:int = 16, reward_shaping=False, compass_penalty_multiplier:float=0.05): 
         self._num_types_special_regions = num_types_special_regions
         self.goal_reward = goal_reward
@@ -113,7 +115,6 @@ class GridWorldBase(gym.Env):
 
         return full_observations, rewards, terminations, truncated, infos
 
-
     def get_curr_special_region(self, agent): 
         agent_location = self._student_agent_location
         if agent == "teacher": 
@@ -144,7 +145,7 @@ class GridWorldBase(gym.Env):
         agent_visible_regions = np.column_stack((X.ravel(), Y.ravel())) # flattened + stacked
         outside_explored = ((agent_visible_regions[:, 0] < self.curr_world_bounds[0][0]) | # less than min x
                              (agent_visible_regions[:, 0] > self.curr_world_bounds[1][0]) |  # greater than max x
-                             (agent_visible_regions[:, 1] < self.curr_world_bounds[0][0]) | # less than min y
+                             (agent_visible_regions[:, 1] < self.curr_world_bounds[0][1]) | # less than min y
                              (agent_visible_regions[:, 1] > self.curr_world_bounds[1][1]))  # greater than max y
         
         # not sure if those were the right coords
@@ -152,6 +153,7 @@ class GridWorldBase(gym.Env):
             new_coords = agent_visible_regions[outside_explored]
             for coord in new_coords: 
                 # set new min/max coords
+                # I know there must be a better way to do this but I'm not sure what that is
                 if coord[0] < self.curr_world_bounds[0][0]: self.curr_world_bounds[0][0] = coord[0] # less than x min
                 if coord[0] > self.curr_world_bounds[1][0]: self.curr_world_bounds[1][0] = coord[0] # greater than x max
                 if coord[1] < self.curr_world_bounds[0][1]: self.curr_world_bounds[0][1] = coord[1] # less than y min
@@ -194,20 +196,11 @@ class GridWorldBase(gym.Env):
     def make_one_agent_grid_relative(self, agent, visibility, extra_empty_layers=0): # extra empty layers is for adding empty layers onto an output in situations like curriculum learning where I want to introduce new regions later, but the agent needs to take in a certain number of layers as input so I need to pad earlier inputs with an extra layer
         # scale down to fixed size based on visibility
         channels = []
+
         agent_grid = np.zeros((2*visibility + 1, 2*visibility + 1), dtype=np.float32) # visibility on both sides + agent cell
         agent_grid[visibility, visibility] = 1 # agent-centric
-
         agent_coords = self.get_agent_loc_for_name(agent)
-
         channels.append(agent_grid)
-        special_regions = self.get_regions_in_visibility(agent, visibility)
-
-        for special_region in special_regions: 
-            region_grid = self.make_empty_grid(2*visibility + 1)
-            for coords in special_region: 
-                rel_coords = (coords[0] - agent_coords[0] + visibility, coords[1] - agent_coords[1] + visibility)
-                region_grid[rel_coords[0], rel_coords[1]] = 1
-            channels.append(region_grid)
 
         target = self._target_location
         target_grid = self.make_empty_grid(2*visibility + 1)
@@ -215,11 +208,26 @@ class GridWorldBase(gym.Env):
             target_grid[self._target_location[0] - agent_coords[0] + visibility, self._target_location[1] - agent_coords[1] + visibility] = 1
         channels.append(target_grid)
 
-        angle = self.get_angle_for_coords(self._target_location, agent_coords)
-        angle_bin = self.get_bucketed_angle(angle)
-        direction_channels = np.zeros((self.num_directions, 2*visibility + 1, 2*visibility + 1), dtype=np.float32)
-        direction_channels[angle_bin, 0, 0] = 1 # one-hot encoding so no synthetic hierarchy, only setting top left corner of channel bc that's all I read
-        channels.extend(direction_channels)
+        special_regions = self.get_regions_in_visibility(agent, visibility)
+        for special_region in special_regions: 
+            region_grid = self.make_empty_grid(2*visibility + 1)
+            for coords in special_region: 
+                rel_coords = (coords[0] - agent_coords[0] + visibility, coords[1] - agent_coords[1] + visibility)
+                region_grid[rel_coords[0], rel_coords[1]] = 1
+            channels.append(region_grid)
+
+        # target col and row channels
+        dist_to_target_row = (self._target_location[0] - agent_coords[0]) / visibility # normalizing by visibility so model can generalize to different sizes easier (normalizing by size = confusing bc values scaled differently)
+        dist_to_target_col = (self._target_location[1] - agent_coords[1]) / visibility
+
+        delta_row_grid = np.zeros((2*visibility + 1, 2*visibility + 1), dtype=np.float32)
+        delta_row_grid[0][0] = dist_to_target_row
+
+        delta_col_grid = np.zeros((2*visibility + 1, 2*visibility + 1), dtype=np.float32)
+        delta_col_grid[0][0] = dist_to_target_col
+
+        channels.append(delta_row_grid)
+        channels.append(delta_col_grid)
 
         for _ in range(extra_empty_layers): 
             channels.append(self.make_empty_grid(2*visibility + 1))
@@ -269,7 +277,7 @@ class TeacherWrapper(gym.Wrapper):
         super().__init__(env)
         self.env = env
         self.visibility = visibility
-        num_channels = 1+env._num_types_special_regions+1+self.env.num_directions # agent + one per region type + target + angle (one-hot encoded)
+        num_channels = 1+env._num_types_special_regions+1+2 # agent + one per region type + target + dx + dy
         grid_size = 2*visibility + 1
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(num_channels, grid_size, grid_size), dtype=np.float32)
         

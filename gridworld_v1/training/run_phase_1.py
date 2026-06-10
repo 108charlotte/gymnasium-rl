@@ -11,7 +11,7 @@ final_epsilon = 0.05
 discount_factor = 0.99
 
 episodes = 10000
-max_steps_multiplier = 4
+max_steps_multiplier = 5
 target_update_freq = 500 # for target CNN, in steps
 visibility = 4
 
@@ -26,12 +26,12 @@ reward_shaping = True
 experience_capacity = 8000
 batch_size = 64
 
-spawn_widths = [5, 10, 15] # matters for target placement
+spawn_widths = [5, 10, 15, 20] # matters for target placement
 
 num_filters_first_layer = 16
 final_conv_filters = num_filters_first_layer * 2
 target_spatial_size = 3
-compass_penalty_multiplier = 1
+compass_penalty_multiplier = 0.05
 
 changes = None # will be overriden by papermill if running headlessly, and if not I'll get from input
 notes = None
@@ -40,32 +40,14 @@ notes = None
 
 experiments = [
     {
-        "changes": "lower discount multiplier", 
-        "compass_penalty_multiplier": 0.05, 
-        "discount_factor": 0.95
+        "changes": "testing without special regions", 
+        "num_special_regions": 0
     }, 
     {
-        "changes": "lower target update frequency", 
-        "compass_penalty_multiplier": 0.05, 
-        "target_update_freq": 200, 
-    }, 
-    {
-        "changes": "both of the last 2 changes at once", 
-        "compass_penalty_multiplier": 0.05, 
-        "discount_factor": 0.95, 
-        "target_update_freq": 200, 
-    }, 
+        "changes": "testing with lower discount factor", 
+        "discount_factor": 0.9
+    }
 ]
-
-'''
-{
-    "changes": "just running w/ test, shouldn't see anything", 
-    "episodes": 50, 
-    "mode": "test", 
-    "model_folder_path": "tm_75" # should just need folder name
-}
-'''
-
 
 for run_id, experiment in enumerate(experiments, start=1): 
     inputs = {

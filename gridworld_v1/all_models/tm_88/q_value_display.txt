@@ -138,6 +138,8 @@ done in 3 steps
 
 2x size tests:
 
+this demo is great, because it shows that its struggling on longer-term paths
+
 Test 1:
 
 step 0 | compass: angle=4.516 | q_values: [-1.4868831634521484, -7.6636738777160645, -1.3141392469406128, -1.2596495151519775] | action: 3 | reward for action: -0.1375
