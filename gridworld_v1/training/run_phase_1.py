@@ -40,10 +40,18 @@ notes = None
 
 experiments = [
     {
-        "changes": "testing with 1 special region and 20000 episodes while I can brute force ;)", 
-        "episodes": 20_000
-    },  
-]
+        "changes": "trying lower discount factor", 
+        "episodes": 20_000, 
+        "discount_factor": 0.95, 
+    }, 
+    {
+        "changes": "even lower discount factor :')", 
+        "episodes": 20_000, 
+        "discount_factor": 0.90, 
+    }, 
+
+    ]
+
 
 for run_id, experiment in enumerate(experiments, start=1): 
     inputs = {
