@@ -323,14 +323,12 @@ class StudentWrapper(gym.Wrapper):
         self.max_steps = max_steps if max_steps is not None else float('inf') # if none, then no max
         self.num_steps = 0 # init value
         
-        self.path = [] # start with starting location; teacher needs to record coordinates visited (path) so that student can access it for training (only used in phase 2, where student trains from teacher example)
-    
     def step(self, action): 
         full_obs, rewards, terminations, _, info = self.env.step_one_agent(action)
 
         self.num_steps += 1
         
-        reward = rewards["teacher"]
+        reward = rewards["student"]
         terminated = terminations["teacher"]
         truncated = self.max_steps <= self.num_steps
 

@@ -1,0 +1,15 @@
+
+Same size tests:
+reached goal: 13 times
+truncated: 36 times
+went through special regions: 3 times
+
+2x size tests:
+reached goal: 1 times
+truncated: 48 times
+went through special regions: 1 times
+
+3x size tests:
+reached goal: 2 times
+truncated: 47 times
+went through special regions: 0 times
