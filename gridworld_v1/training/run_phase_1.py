@@ -21,7 +21,7 @@ step_penalty = -0.1
 num_special_regions = 1
 special_region_rewards = [-5.0]
 num_directions = 16 # this is the default anyways
-reward_shaping = True
+reward_shaping = False
 
 experience_capacity = 8000
 batch_size = 64
@@ -32,6 +32,8 @@ num_filters_first_layer = 16
 final_conv_filters = num_filters_first_layer * 2
 target_spatial_size = 3
 compass_penalty_multiplier = 0.05
+distance_reward_shaping = False
+distance_reward_multiplier = 1
 
 changes = None # will be overriden by papermill if running headlessly, and if not I'll get from input
 notes = None
@@ -40,16 +42,12 @@ notes = None
 
 experiments = [
     {
-        "changes": "trying lower discount factor", 
-        "episodes": 20_000, 
+        "changes": "trying distance reward shaping", 
+        "episodes": 10_000, 
         "discount_factor": 0.95, 
+        "reward_shaping": False, 
+        "distance_reward_shaping": True, 
     }, 
-    {
-        "changes": "even lower discount factor :')", 
-        "episodes": 20_000, 
-        "discount_factor": 0.90, 
-    }, 
-
     ]
 
 
@@ -77,6 +75,9 @@ for run_id, experiment in enumerate(experiments, start=1):
         "num_filters_first_layer": experiment.get("num_filters_first_layer", num_filters_first_layer),
         "final_conv_filters": experiment.get("num_filters_first_layer", num_filters_first_layer) * 2,
         "target_spatial_size": experiment.get("target_spatial_size", target_spatial_size),
+        "distance_reward_shaping": experiment.get("distance_reward_shaping", distance_reward_shaping), 
+        "distance_reward_multiplier": experiment.get("distance_reward_multiplier", distance_reward_multiplier), 
+        "reward_shaping": experiment.get("reward_shaping", reward_shaping), 
 
         "notes": "Ran in the background, may add notes later if this run was important/a checkpoint"
     }

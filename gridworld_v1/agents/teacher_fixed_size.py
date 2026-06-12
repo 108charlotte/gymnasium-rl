@@ -7,13 +7,11 @@ import torch.optim as optim
 import random
 import copy
 
-# the 
-
-class CNN(torch.nn.Module): # CNN because should have spatial reasoning
-    def __init__(self, num_types_special_regions, num_directions, num_filters_first_layer, final_conv_filters, target_spatial_size):
+class DQN(torch.nn.Module): # CNN because should have spatial reasoning
+    def __init__(self, num_types_special_regions, world_size, num_filters_first_layer, final_conv_filters, target_spatial_size):
         super().__init__()
         self.spatial_reasoning = nn.Sequential(
-            nn.Conv2d(2 + num_types_special_regions, num_filters_first_layer, kernel_size=3, padding=1),
+            nn.Conv2d(2 + num_types_special_regions, num_filters_first_layer, kernel_size=3, padding=1), # needs to take input same size as world, channels are teacher, target, special regions
             nn.ReLU(),
             nn.Conv2d(num_filters_first_layer, final_conv_filters, kernel_size=3, padding=1),
             nn.ReLU(),
@@ -21,13 +19,8 @@ class CNN(torch.nn.Module): # CNN because should have spatial reasoning
             nn.Flatten()
         )
 
-        self.teacher_action_processing = nn.Sequential(
-            nn.Linear(num_directions, 16), 
-            nn.ReLU()
-        )
-
         self.to_action = nn.Sequential(
-            nn.Linear(final_conv_filters * target_spatial_size**2 + 16, 64), # spatial out + linear out
+            nn.Linear(final_conv_filters * target_spatial_size**2, 64), 
             nn.ReLU(), 
             nn.Linear(64, 4)
         )
@@ -37,19 +30,16 @@ class CNN(torch.nn.Module): # CNN because should have spatial reasoning
     
     def forward(self, x):
         # x is shape: (batch, 1 + num_types_special_regions + 1 + num_directions, h, w)
-        # x[:, :-2] is shape: (batch, 2 + num_special_regions, h, w) with the first 2 channels
-        # x[:, -2:] is shape: (batch, 2, h, w)
-        # x[:, -2:] then becomes x[:, -2:, 0, 0] grabs top left corner; doesn't matter which pixel, since all are same (one channel all the col dists, one all the row dists)
-        spatial_result = self.spatial_reasoning(x[:, :self.num_spatial_channels]) # slice channel dimension (1st is batch dimension) last two are col and row for compass nav
-        compass_result = self.compass_processing(x[:, self.num_spatial_channels:, 0, 0])
-        return self.to_action(torch.cat([spatial_result, compass_result], dim=1))
+        spatial_result = self.spatial_reasoning(x) # slice channel dimension (1st is batch dimension) last two are col and row for compass nav
+        action = self.to_action(spatial_result)
+        return action
 
 # for now, this is heavily modeled after https://gymnasium.farama.org/v1.1.1/introduction/train_agent/
 # and the DQN is this: https://medium.com/data-science/develop-your-first-ai-agent-deep-q-learning-375876ee2472#b396
 class TeacherAgent: 
     def __init__(self, 
                  num_types_special_regions_in_env: int, 
-                 num_directions: int, 
+                 world_size: int, 
                  learning_rate: float, 
                  initial_epsilon: float, 
                  epsilon_decay: float, 
@@ -60,8 +50,9 @@ class TeacherAgent:
                  target_update_freq: int = 1000, 
                  discount_factor: float = 0.95,
                 ): 
+
         self.num_types_special_regions_in_env = num_types_special_regions_in_env
-        self.num_directions = num_directions
+        self.world_size = world_size
         self.learning_rate = learning_rate
 
         self.epsilon = initial_epsilon
@@ -88,7 +79,7 @@ class TeacherAgent:
     
     def build_model(self): 
         print(f"Using {self.device} device")
-        model = DQN(self.num_types_special_regions_in_env, self.num_directions, self.num_filters_first_layer, self.final_conv_filters, self.target_spatial_size).to(self.device)
+        model = DQN(self.num_types_special_regions_in_env, self.world_size, self.num_filters_first_layer, self.final_conv_filters, self.target_spatial_size).to(self.device)
         self.target_model = copy.deepcopy(model).to(self.device)
         self.steps_done = 0
         return model
@@ -101,7 +92,6 @@ class TeacherAgent:
             with torch.no_grad(): 
                 q_values = self.model(state)
             action = q_values.argmax().item()
-        
         return action
     
     def decay_epsilon(self): 
@@ -125,7 +115,6 @@ class TeacherAgent:
         current_q_values = self.model(states).gather(1, actions.unsqueeze(1)).squeeze(1) # passes hidden = None
         with torch.no_grad():
             next_actions = self.model(next_states).argmax(dim=1) # the maximum that could happen, assuming the agent takes the best action
-
             next_q_values = (self.target_model(next_states).gather(1, next_actions.unsqueeze(1)).squeeze(1)) # double dqn: predict q values w/ target network
         target_q_values = rewards + self.discount_factor * next_q_values * (1 - dones)
         
@@ -148,10 +137,10 @@ class TeacherAgent:
             "optimizer_state_dict": self.optimizer.state_dict(),
             "epsilon": self.epsilon,
             "steps_done": self.steps_done,
+            "world_size": self.world_size, 
             "num_filters_first_layer": self.num_filters_first_layer,
             "final_conv_filters": self.final_conv_filters,
             "target_spatial_size": self.target_spatial_size,
-            "num_directions": self.num_directions,
             "num_types_special_regions_in_env": self.num_types_special_regions_in_env,
             "learning_rate": self.learning_rate,
             "discount_factor": self.discount_factor,

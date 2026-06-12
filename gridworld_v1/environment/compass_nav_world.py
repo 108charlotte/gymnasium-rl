@@ -4,15 +4,17 @@ import math
 import pandas as pd
 
 class GridWorldBase(gym.Env): 
-    def __init__(self, num_types_special_regions: int = 0, goal_reward: int = 10, step_penalty: float = -0.1, spawn_width:int = 10, num_directions:int = 16, reward_shaping=False, compass_penalty_multiplier:float=0.05, student_teacher_alignment_multiplier:float=0.05): 
+    def __init__(self, num_types_special_regions: int = 0, goal_reward: int = 10, step_penalty: float = -0.1, spawn_width:int = 10, num_directions:int = 16, reward_shaping=False, compass_penalty_multiplier:float=0.05, student_teacher_alignment_multiplier:float=0.0, distance_reward_shaping=False, distance_reward_multiplier:int = 1): 
         self._num_types_special_regions = num_types_special_regions
         self.goal_reward = goal_reward
         self.step_penalty = step_penalty
         self.spawn_width = spawn_width
         self.num_directions = num_directions
         self.reward_shaping = reward_shaping
+        self.distance_reward_shaping = distance_reward_shaping
         self.compass_penalty_multiplier = compass_penalty_multiplier
         self.student_teacher_alignment_multiplier = student_teacher_alignment_multiplier
+        self.distance_reward_multiplier = distance_reward_multiplier
 
         self.curr_world_bounds = np.array([(0,0),(spawn_width,spawn_width)]) # (smallest x, smallest y), (greatest x, greatest y)
 
@@ -78,6 +80,13 @@ class GridWorldBase(gym.Env):
         dir_reward = self.compass_penalty_multiplier * (1- 2*bin_diff/max_bin_diff) # when bin_diff = max_bin_diff, this will give -1 bc they're going in the opposite direction; when bin_diff = max_bin_diff/2, they're perpendicular, and when bin_diff = 0 will return 1; current formula from claude, may change later
         return self.goal_reward + dir_reward if np.array_equal(agent_loc, self._target_location) else self.step_penalty + dir_reward
 
+    def get_reward_with_distance_shaping(self, old_loc, agent_loc): 
+        old_dist = np.linalg.norm(old_loc - self._target_location)
+        new_dist = np.linalg.norm(agent_loc - self._target_location)
+
+        progress_reward = (old_dist - new_dist) * self.distance_reward_multiplier
+        return self.goal_reward + progress_reward if np.array_equal(agent_loc, self._target_location) else self.step_penalty + progress_reward
+
     def get_student_teacher_alignment_reward(self, student_action, teacher_action): # to make this work, I'm going to need to store the teacher's last action since step_one_agent only moves one...maybe I'll make a step_both_agents for this
         corresponding_student_action_angle = student_action * math.pi/2
         corresponding_teacher_action_angle = teacher_action * math.pi/2
@@ -117,7 +126,13 @@ class GridWorldBase(gym.Env):
         terminations = {"teacher": np.array_equal(self._teacher_agent_location, self._target_location), "student": np.array_equal(self._student_agent_location, self._target_location)}
         truncated = False # will be overridden in wrappers, since wrappers keep track of steps for each agent (not part of world environment)
         # unless overridden later by special area rules for teacher, small penalties for all areas except for goal to encourage going to goal
-        rewards = {"teacher": self.get_reward_with_shaping(old_loc, agent_loc) if self.reward_shaping else self.get_reward_no_shaping(), "student": self.get_reward_with_shaping(old_loc, agent_loc) if self.reward_shaping else self.get_reward_no_shaping()}
+        if self.reward_shaping: 
+            rewards = {"teacher": self.get_reward_with_shaping(old_loc, agent_loc), "student": self.get_reward_with_shaping(old_loc, agent_loc)}
+        elif self.distance_reward_shaping: 
+            rewards = {"teacher": self.get_reward_with_distance_shaping(old_loc, agent_loc), "student": self.get_reward_with_distance_shaping(old_loc, agent_loc)}
+        else: 
+            rewards = {"teacher": self.get_reward_no_shaping(), "student": self.get_reward_no_shaping()}
+
         full_observations = self.get_full_world_state()
         # placeholder to not crash
         infos = {"teacher": {}, "student": {}}
@@ -126,26 +141,24 @@ class GridWorldBase(gym.Env):
 
 
     def step_both_agents(self, student_action, teacher_action):  
-        direction = self._action_to_direction[action]
-
+        teacher_direction = self._action_to_direction[teacher_action]
         old_teacher_loc = self._teacher_agent_location.copy()
-        self._teacher_agent_location += direction
+        self._teacher_agent_location += teacher_direction
         
+        student_direction = self._action_to_direction[student_action]
         old_student_loc = self._student_agent_location.copy()
-        self._student_agent_location += direction
+        self._student_agent_location += student_direction
 
         terminations = {"teacher": np.array_equal(self._teacher_agent_location, self._target_location), "student": np.array_equal(self._student_agent_location, self._target_location)}
         truncated = False # will be overridden in wrappers, since wrappers keep track of steps for each agent (not part of world environment)
         # unless overridden later by special area rules for teacher, small penalties for all areas except for goal to encourage going to goal
         # for reference: get_student_teacher_alignment_reward(self, student_action, teacher_action)
-        rewards = {"teacher": self.get_reward_with_shaping(old_loc, agent_loc) if self.reward_shaping else self.get_reward_no_shaping(), "student": self.get_student_teacher_alignment_reward(student_action, teacher_action) + self.get_reward_with_shaping(old_loc, agent_loc) if self.reward_shaping else self.get_reward_no_shaping() + self.get_student_teacher_alignment_reward(student_action, teacher_action)}
+        rewards = {"teacher": self.get_reward_with_shaping(old_teacher_loc, self._teacher_agent_location) if self.reward_shaping else self.get_reward_no_shaping(), "student": self.get_student_teacher_alignment_reward(student_action, teacher_action) + self.get_reward_with_shaping(old_student_loc, self._student_agent_location) if self.reward_shaping else self.get_reward_no_shaping() + self.get_student_teacher_alignment_reward(student_action, teacher_action)}
         full_observations = self.get_full_world_state()
         # placeholder to not crash
         infos = {"teacher": {}, "student": {}}
 
         return full_observations, rewards, terminations, truncated, infos
-
-
 
     def get_curr_special_region(self, agent): 
         agent_location = self._student_agent_location

@@ -1,0 +1,27 @@
+spawn_widths = [5, 10, 15, 20]
+learning_rate = 0.001
+initial_epsilon = 1
+epsilon_decay = 0.999
+final_epsilon = 0.05
+discount_factor = 0.95
+episodes = 10000
+max_steps = 100
+target_update_freq = 500
+visibility = 4
+goal_reward = 10
+num_special_regions = 1
+special_region_rewards = [-5.0]
+experience_capacity = 8000
+batch_size = 64
+num_filters_first_layer = 16
+final_conv_filters = 32
+target_spatial_size = 3
+step_penalty = -0.1
+num_directions = 16
+reward_shaping = False
+compass_penalty_multiplier = 0.05
+
+
+Training Time: 33:10
+Changes: trying distance reward shaping
+Notes: Ran in the background, may add notes later if this run was important/a checkpoint
