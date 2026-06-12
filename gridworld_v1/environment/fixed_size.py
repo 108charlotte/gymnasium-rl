@@ -2,6 +2,7 @@ import numpy as np
 import gymnasium as gym
 import math
 import pandas as pd
+from collections import defaultdict
 
 class FixedSizeGridworldBase(gym.Env): 
     def __init__(self, num_types_special_regions: int = 0, goal_reward: int = 10, step_penalty: float = -0.1, world_size: int = 10): 
@@ -41,11 +42,13 @@ class FixedSizeGridworldBase(gym.Env):
 
         special_regions_index_order = self.np_random.permutation(self._num_types_special_regions)
         for index in special_regions_index_order:
-            num_to_place = self.np_random.integers(low=0, high=(self.world_size ** 2) // 2)
-            self._special_regions[index] = [
-                tuple(self.np_random.integers(0, self.world_size, size=2, dtype=int))
-                for _ in range(num_to_place)
-            ]
+            num_to_place = self.np_random.integers(low=0, high=(self.world_size ** 2) // 2) # maybe add a saturation parameter later
+            self._special_regions[index] = []
+            for _ in range(num_to_place): 
+                coords = tuple(self.np_random.integers(0, self.world_size, size=2, dtype=int))
+                while np.array_equal(coords, self._target_location) or np.array_equal(coords, self._teacher_agent_location): 
+                    coords = tuple(self.np_random.integers(0, self.world_size, size=2, dtype=int))
+                self._special_regions[index].append(coords)
         
         return np.array([]), {} # empty info and empty obs
     
@@ -56,12 +59,13 @@ class FixedSizeGridworldBase(gym.Env):
         direction = self._action_to_direction[action]
         # can't use func I wrote to get loc bc I need to update too
         self._teacher_agent_location += direction
-        
+        # clip so agent stays within world bounds: 
+        self._teacher_agent_location = np.clip(self._teacher_agent_location, 0, self.world_size - 1)
         terminated = np.array_equal(self._teacher_agent_location, self._target_location)
         truncated = False # will be overridden in wrappers, since wrappers keep track of steps for each agent (not part of world environment)
         # unless overridden later by special area rules for teacher, small penalties for all areas except for goal to encourage going to goal
         reward = self.get_reward_no_shaping(self._teacher_agent_location)
-        obs = [] # filled in in wrapper
+        obs = self.make_one_agent_grid("teacher")
         # placeholder to not crash
         infos = {}
 
@@ -76,27 +80,7 @@ class FixedSizeGridworldBase(gym.Env):
                 if coords[0] == agent_location[0] and coords[1] == agent_location[1]: 
                     return i # regions identified by where they appear in the list
         return None
-    
-    def get_reward_student(self, student_loc, student_action, teacher_action): 
-        base_reward = self.get_reward_no_shaping(student_loc)
-        action_diff = abs(teacher_action - student_action)
-        max_alignment_diff = self.action_space.n // 2
-        teacher_alignment_reward = self.teacher_student_multiplier * (1-2*action_diff/max_alignment_diff)
-        return teacher_alignment_reward + base_reward
-
-    def step_student(self, action, teacher_action): # teacher action included for calculating reward
-        direction = self._action_to_direction[action]
-        self._student_agent_location += direction
-
-        terminated = np.array_equal(self._student_agent_location, self._target_location)
-        truncated = False
-
-        reward = self.get_reward_student(self._student_agent_location, action, teacher_action)
-        obs = []
-        infos = {}
-
-        return obs, reward, terminated, truncated, infos
-    
+   
     def is_in_visibility_region(self, agent_location, coords, visibility_range = None): 
         if visibility_range is None: 
             return True
@@ -182,7 +166,6 @@ class FixedSizeGridworldBase(gym.Env):
         print('') if output_file is None else print('', file=output_file) # To add some space between renders for each step
 
 
-
 class TeacherWrapper(gym.Wrapper): # keeps track of steps for truncation, and updates reward
     def __init__(self, env, max_steps: int = 50, special_region_rewards: list[float] = []): # if visibility not passed just sees whole world, defaults to ignoring regions
         super().__init__(env)
@@ -195,14 +178,12 @@ class TeacherWrapper(gym.Wrapper): # keeps track of steps for truncation, and up
         self.special_region_rewards =  list(special_region_rewards) # should create a copy I can work with so I don't mutate the parameter list
         if self.env._num_types_special_regions - len(special_region_rewards) > 0: 
             self.special_region_rewards += [0] * (self.env._num_types_special_regions - len(special_region_rewards))
-        
-        self.most_recent_action = -1 # default un-initialized value, should always be updated before student reads but if not there was a bug somewhere
-        # actually instead, I might need to store what the teacher did in each state, since if the student deviates from the teacher for one action then everything is kind of lost
+        self.state_action_pairs = defaultdict(int) # state as key, action as value (int since action is numerically encoded)
     
     def step(self, action): 
-        self.most_recent_action = action
+        # tobytes bc needs to be hashable to be dict key
+        self.state_action_pairs[self.env.make_one_agent_grid("teacher").tobytes()] = action # needs to happen before state is updated; I want the student to learn which actions to take in which situations, not which actions caused which situations
         obs, reward, terminated, _, info = self.env.step_teacher_only(action)
-        obs = self.make_one_agent_grid("teacher") # will just exclude student, since teacher doesn't need to see student (and student doesn't need to see teacher, only needs to receive its actions)
         self.num_steps += 1
         truncated = self.max_steps <= self.num_steps
         # update reward based on special_region_rewards values
@@ -216,34 +197,3 @@ class TeacherWrapper(gym.Wrapper): # keeps track of steps for truncation, and up
         obs, info = self.env.reset(seed=seed, options=options) # trigger base env reset (makes sure I have valid coords for teacher agent start)
         self.num_steps = 0
         return obs, info
-
-''' may implement this later, since the teacherwrapper and studentwrapper both count steps
-class AgentWrapper(gym.Wrapper): 
-    def __init__(self, env, agent_name, max_steps:int = 50): 
-        super().__init__(env)
-        self.env = env
-        self.max_steps = max_steps if max_steps is not None else float('inf')
-        self.num_steps = 0
-
-    def step(self, action, teacher_action=None):
-'''
-''' temporarily (possibly) commented bc I think this might be a supervised learning problem
-class StudentWrapper(gym.Wrapper): 
-    def __init__(self, env, max_steps: int = 50): # needs teacher agent to get its most recent ac
-        super().__init__(env)
-        self.env = env
-        self.max_steps = max_steps if max_steps is not None else float('inf') # if none, then no max
-        self.num_steps = 0 # init value
-    
-    def step(self, action, teacher_action): 
-        obs, reward, terminated, _, info = self.env.step_student(action, teacher_action)
-        obs = self.env.make_one_agent_grid("student")
-        self.num_steps += 1
-        truncated = self.max_steps <= self.num_steps
-        return obs, reward, terminated, truncated, info
-    
-    def reset(self, seed=None, options=None): 
-        obs, info = self.env.reset(seed=seed, options=options) # trigger base env reset (makes sure I have valid coords for teacher agent start)
-        self.num_steps = 0
-        return obs, info
-'''
