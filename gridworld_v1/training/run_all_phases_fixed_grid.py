@@ -5,7 +5,7 @@ mode = "train" # default
 model_folder_path = None # for loading a model if in test
 # initialization
 learning_rate = 0.001
-initial_epsilon = 1
+initial_epsilon = 1.0
 epsilon_decay = 0.9995
 final_epsilon = 0.05
 discount_factor = 0.99
@@ -35,11 +35,10 @@ notes = None
 
 experiments = [
     {
-        "changes": "Increasing special region penalty and target spatial size", 
-        "special_region_rewards": [-5.0], 
-        "target_spatial_size": target_spatial_size, 
+        "changes": "Stationary grid things",
+        "step_penalty": -0.1,
     }, 
-    ]
+]
 
 
 for run_id, experiment in enumerate(experiments, start=1): 

@@ -1,0 +1,5 @@
+
+Many same size tests:
+reached goal: 42 times
+truncated: 7 times
+went through special regions: 12 times

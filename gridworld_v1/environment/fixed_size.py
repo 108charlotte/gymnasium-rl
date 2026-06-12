@@ -5,11 +5,13 @@ import pandas as pd
 from collections import defaultdict
 
 class FixedSizeGridworldBase(gym.Env): 
-    def __init__(self, num_types_special_regions: int = 0, goal_reward: int = 10, step_penalty: float = -0.1, world_size: int = 10): 
+    def __init__(self, num_types_special_regions: int = 0, goal_reward: int = 10, step_penalty: float = -0.1, world_size: int = 10, static_world = False): 
         self._num_types_special_regions = num_types_special_regions
         self.goal_reward = goal_reward
         self.step_penalty = step_penalty
         self.world_size = world_size
+        self.static_world = static_world
+        self.coords = defaultdict(list) # if world is static, then this will store the agent location, the goal location, and the special regions locations
 
         self.coords_to_default() # set coordinates to - values to show that they are uninitialized
         num_channels = 1+num_types_special_regions+1+2 # agent + one per region type + target + dx + dy
@@ -24,22 +26,7 @@ class FixedSizeGridworldBase(gym.Env):
             3: np.array([1, 0]), # down (row + 1)
         }
     
-    def coords_to_default(self): 
-        self._teacher_agent_location = np.array([-1, -1], dtype=np.int32)
-        self._student_agent_location = np.array([-1, -1], dtype=np.int32)
-        self._target_location = np.array([-1, -1], dtype=np.int32)
-        self._special_regions = [[] for special_region in range(self._num_types_special_regions)]  # each index corresponds to a different type of region, and the values in the list are each tuples of coordinates where the region is
-    
-    def reset(self, seed=None, options=None):
-        super().reset(seed=seed)
-        # randomly sets teacher, sets student to same start location as teacher
-        self._teacher_agent_location = self.np_random.integers(0, self.world_size, size=2, dtype=int)
-        self._student_agent_location = self._teacher_agent_location.copy()
-
-        self._target_location = self._teacher_agent_location.copy()
-        while np.array_equal(self._target_location, self._teacher_agent_location):
-            self._target_location = self.np_random.integers(0, self.world_size, size=2, dtype=int)
-
+    def _init_special_regions(self): 
         special_regions_index_order = self.np_random.permutation(self._num_types_special_regions)
         for index in special_regions_index_order:
             num_to_place = self.np_random.integers(low=0, high=(self.world_size ** 2) // 2) # maybe add a saturation parameter later
@@ -49,6 +36,34 @@ class FixedSizeGridworldBase(gym.Env):
                 while np.array_equal(coords, self._target_location) or np.array_equal(coords, self._teacher_agent_location): 
                     coords = tuple(self.np_random.integers(0, self.world_size, size=2, dtype=int))
                 self._special_regions[index].append(coords)
+
+    def coords_to_default(self): 
+        self._teacher_agent_location = self.np_random.integers(0, self.world_size, size=2, dtype=int)
+        self._student_agent_location = np.array([-1, -1])
+        self._target_location = self.np_random.integers(0, self.world_size, size=2, dtype=int)
+        self._special_regions = [[] for _ in range(self._num_types_special_regions)]
+        self._init_special_regions()
+
+        self.coords["teacher_agent_loc"] = self._teacher_agent_location
+        self.coords["target_loc"] = self._target_location
+        self.coords["special_regions"] = self._special_regions
+
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
+        if self.static_world: 
+            self._teacher_agent_location = self.coords["teacher_agent_loc"]
+            self._target_location = self.coords["target_loc"]
+            self._special_regions = self.coords["special_regions"]
+        else:    
+            # randomly sets teacher, sets student to same start location as teacher
+            self._teacher_agent_location = np_random.integers(0, self.world_size, size=2, dtype=int)
+            self._student_agent_location = self._teacher_agent_location.copy()
+
+            self._target_location = self._teacher_agent_location.copy()
+            while np.array_equal(self._target_location, self._teacher_agent_location):
+                self._target_location = np_random.integers(0, self.world_size, size=2, dtype=int)
+
+            self._init_special_regions()
         
         return np.array([]), {} # empty info and empty obs
     
@@ -92,21 +107,6 @@ class FixedSizeGridworldBase(gym.Env):
         if name == "teacher": 
             agent_location = self._teacher_agent_location
         return agent_location
-
-    # sped up for quality of life improvement
-    def get_regions_in_visibility(self, agent, visibility_range): 
-        agent_location = self.get_agent_loc_for_name(agent)
-        
-        visible = []
-        for region in self._special_regions: 
-            if len(region) == 0: # so program doesn't crash doing math on an empty array 
-                visible.append(np.array([]))
-                continue
-            all_region_coords = np.array(region)
-            dists = np.abs(all_region_coords - agent_location)
-            in_visibility = np.all(dists <= visibility_range, axis=1) # axis=1 checks row-wise, I'm not sure why it wouldn't be axis=0 but this appears to work and that didn't work so I'm using this
-            visible.append(all_region_coords[in_visibility])
-        return visible
     
     def make_one_agent_grid(self, agent_name): 
         agent_loc = self.get_agent_loc_for_name(agent_name)
@@ -129,11 +129,6 @@ class FixedSizeGridworldBase(gym.Env):
         
         return np.array(channels)
    
-    def make_empty_grid(self, size): # this isn't worth a function really, it used to have a check for None to set to full grid but now there isn't really a full grid
-        grid = np.zeros((size, size), dtype=np.float32)
-        # grid = [[0 for row in range(self.size)] for col in range(self.size)]
-        return grid
-    
     def render(self, output_file=None): 
         all_coords = np.array([self._teacher_agent_location, self._student_agent_location, self._target_location] + [np.array(col) for row in self._special_regions for col in row])
         row_min,col_min = all_coords.min(axis=0)
