@@ -3,6 +3,8 @@ import gymnasium as gym
 import math
 import pandas as pd
 from collections import defaultdict
+from pathfinding.core.grid import Grid
+from pathfinding.finder.breadth_first import BreadthFirstFinder
 
 class FixedSizeGridworldBase(gym.Env): 
     def __init__(self, num_types_special_regions: int = 0, goal_reward: int = 10, step_penalty: float = -0.1, world_size: int = 10, static_world = False): 
@@ -14,7 +16,7 @@ class FixedSizeGridworldBase(gym.Env):
         self.coords = defaultdict(list) # if world is static, then this will store the agent location, the goal location, and the special regions locations
 
         self.coords_to_default() # set coordinates to - values to show that they are uninitialized
-        num_channels = 1+num_types_special_regions+1+2 # agent + one per region type + target + dx + dy
+        num_channels = 1+num_types_special_regions+1 # agent + one per region type + target
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(num_channels, world_size, world_size), dtype=np.float32)
 
         self.action_space = gym.spaces.Discrete(4)
@@ -44,24 +46,36 @@ class FixedSizeGridworldBase(gym.Env):
         self._special_regions = [[] for _ in range(self._num_types_special_regions)]
         self._init_special_regions()
 
-        self.coords["teacher_agent_loc"] = self._teacher_agent_location
-        self.coords["target_loc"] = self._target_location
+        self.coords["teacher_agent_loc"] = [self._teacher_agent_location.copy()]
+        self.coords["target_loc"] = [self._target_location.copy()]
         self.coords["special_regions"] = self._special_regions
+
+    def shortest_path_to_goal(self): # must be called after all locations are initialized
+        # https://github.com/brean/python-pathfinding/blob/main/docs/01_basic_usage.md
+        matrix = np.full(shape=(self.world_size, self.world_size), fill_value=1)
+        matrix[self._special_regions] = 0 # indicates obstacles, assumes all special regions have a more negative penalty than step penalty (overly simplistic, but the environment doesn't have access to the rewards, only the teacher wrapper does)
+        grid = Grid(matrix=matrix)
+        start = grid.node(self._teacher_agent_location[1], self._teacher_agent_location[0])
+        end = grid.node(self._target_location[1], self._target_location[0])
+        finder = BreadthFirstFinder()
+        path, runs = finder.find_path(start, end, grid)
+        return len(path)
+
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-        if self.static_world: 
-            self._teacher_agent_location = self.coords["teacher_agent_loc"]
-            self._target_location = self.coords["target_loc"]
+        if self.static_world:
+            self._teacher_agent_location = (self.coords["teacher_agent_loc"][0].copy())
+            self._target_location = (self.coords["target_loc"][0].copy())
             self._special_regions = self.coords["special_regions"]
         else:    
             # randomly sets teacher, sets student to same start location as teacher
-            self._teacher_agent_location = np_random.integers(0, self.world_size, size=2, dtype=int)
+            self._teacher_agent_location = self.np_random.integers(0, self.world_size, size=2, dtype=int)
             self._student_agent_location = self._teacher_agent_location.copy()
 
             self._target_location = self._teacher_agent_location.copy()
             while np.array_equal(self._target_location, self._teacher_agent_location):
-                self._target_location = np_random.integers(0, self.world_size, size=2, dtype=int)
+                self._target_location = self.np_random.integers(0, self.world_size, size=2, dtype=int)
 
             self._init_special_regions()
         
@@ -130,31 +144,28 @@ class FixedSizeGridworldBase(gym.Env):
         return np.array(channels)
    
     def render(self, output_file=None): 
-        all_coords = np.array([self._teacher_agent_location, self._student_agent_location, self._target_location] + [np.array(col) for row in self._special_regions for col in row])
-        row_min,col_min = all_coords.min(axis=0)
-        row_max,col_max = all_coords.max(axis=0)
         # build grid 2d list
-        grid = [["  " for row in range(col_max - col_min + 1)] for col in range(row_max - row_min + 1)] # empty but correct size
+        grid = [["  " for row in range(self.world_size)] for col in range(self.world_size)]
 
         for i, region in enumerate(self._special_regions): 
             for coords in region: 
-                grid[coords[0]-row_min][coords[1]-col_min] = f"{i} "
+                grid[coords[0]][coords[1]] = f"{i} "
 
         # these override region visibilities
         # make sure student doesn't override teacher
         if not np.array_equal(self._teacher_agent_location, self._student_agent_location): 
-            grid[self._teacher_agent_location[0]-row_min][self._teacher_agent_location[1]-col_min] =  "🟦 " # updated to emoji so more visible in bigger gridworlds
-            grid[self._student_agent_location[0]-row_min][self._student_agent_location[1]-col_min] = "🟨 " # same as above
+            grid[self._teacher_agent_location[0]][self._teacher_agent_location[1]] =  "🟦 " # updated to emoji so more visible in bigger gridworlds
+            grid[self._student_agent_location[0]][self._student_agent_location[1]] = "🟨 " # same as above
         else: 
-            grid[self._teacher_agent_location[0]-row_min][self._teacher_agent_location[1]-col_min] = "🟫 " # same as above
+            grid[self._teacher_agent_location[0]][self._teacher_agent_location[1]] = "🟫 " # same as above
         
         # show when goal reached
         if np.array_equal(self._teacher_agent_location, self._target_location): 
-            grid[self._target_location[0]-row_min][self._target_location[1]-col_min] = "🟦🎉"
+            grid[self._target_location[0]][self._target_location[1]] = "🟦🎉"
         elif np.array_equal(self._student_agent_location, self._target_location): 
-            grid[self._target_location[0]-row_min][self._target_location[1]-col_min] = "🟨🎉"
+            grid[self._target_location[0]][self._target_location[1]] = "🟨🎉"
         else: 
-            grid[self._target_location[0]-row_min][self._target_location[1]-col_min] = "🟩 "
+            grid[self._target_location[0]][self._target_location[1]] = "🟩 "
 
         for row in grid:
             print(row) if output_file is None else print(row, file = output_file)

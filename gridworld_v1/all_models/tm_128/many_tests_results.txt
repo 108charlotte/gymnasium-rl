@@ -1,0 +1,10 @@
+
+Many same size tests:
+reached goal: 191 times
+ • took fastest path: 13
+ • took slower path: 132
+truncated: 8 times
+ • unreachable: 8
+ • not unreachable: 0
+
+went through special regions: 39 times

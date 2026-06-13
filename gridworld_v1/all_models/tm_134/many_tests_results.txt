@@ -1,0 +1,20 @@
+
+Many same size tests:
+episode 1: step=6, shortest_path=0
+episode 2: step=6, shortest_path=0
+episode 3: step=2, shortest_path=4
+episode 4: step=1, shortest_path=0
+episode 5: step=4, shortest_path=6
+episode 6: step=5, shortest_path=0
+episode 7: step=3, shortest_path=0
+episode 8: step=3, shortest_path=0
+episode 9: step=3, shortest_path=0
+episode 10: step=1, shortest_path=0
+reached goal: 187 times
+ • took fastest path: 12
+ • took slower path: 130
+truncated: 12 times
+ • unreachable: 12
+ • not unreachable: 0
+
+went through special regions: 62 times

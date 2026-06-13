@@ -18,12 +18,12 @@ goal_reward = 10
 step_penalty = -0.5
 
 num_special_regions = 1
-special_region_rewards = [-1.0]
+special_region_rewards = [-5.0]
 
 experience_capacity = 8000
 batch_size = 64
 
-world_size = 9 # arbitrary choice, what matters is that I'm only using one
+world_size = 6 # arbitrary choice, what matters is that I'm only using one
 num_filters_first_layer = 16
 final_conv_filters = num_filters_first_layer * 2
 target_spatial_size = 3
@@ -35,9 +35,21 @@ notes = None
 
 experiments = [
     {
-        "changes": "Stationary grid things",
-        "step_penalty": -0.1,
+        "changes": "Re-running with more info: Target spatial size the same as world size",
+        "target_spatial_size": world_size, 
+        "episodes": 30_000,
     }, 
+    {
+        "changes": "Re-running with more info: Very high special region penalty",
+        "special_region_penalty": [-10.0], # I tried this before, but now in isolation
+        "episodes": 30_000,
+    }, 
+    {
+        "changes": "Re-running with more info: Both target spatial size the same as world size and very high special region penalty combined", 
+        "target_spatial_size": world_size, 
+        "special_region_penalty": [-10.0],
+        "episodes": 30_000, 
+    }
 ]
 
 

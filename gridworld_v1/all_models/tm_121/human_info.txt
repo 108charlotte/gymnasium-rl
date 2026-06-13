@@ -1,0 +1,23 @@
+world_size = 6
+learning_rate = 0.001
+initial_epsilon = 1
+epsilon_decay = 0.9995
+final_epsilon = 0.05
+discount_factor = 0.995
+episodes = 30000
+max_steps = 50
+target_update_freq = 500
+goal_reward = 10
+num_special_regions = 1
+special_region_rewards = [-5.0]
+experience_capacity = 8000
+batch_size = 64
+num_filters_first_layer = 16
+final_conv_filters = 32
+target_spatial_size = 3
+step_penalty = -0.1
+
+
+Training Time: 17:27
+Changes: Increasing discount factor, needs to value rewards far in future to insentivise taking longer path to reach goal
+Notes: Ran in the background, may add notes later if this run was important/a checkpoint
